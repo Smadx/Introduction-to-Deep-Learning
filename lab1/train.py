@@ -39,10 +39,9 @@ def main():
     parser.add_argument("--act-fn", type=str, default="relu")
 
     # Training
-    parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--seed", type=int, default=12345)
-    parser.add_argument("--clip-grad-norm", type=bool, default=True)
 
     parser.add_argument("--results-path", type=str, default=None)
     parser.add_argument("--epochs", type=int, default=1_000)
@@ -59,10 +58,25 @@ def main():
     print_model_summary(model, batch_size=cfg.batch_size,shape=(1, 1), batch_size_torchinfo=cfg.batch_size)
     with accelerator.local_main_process_first():
         train_loader, val_loader, test_loader = make_dataloader(cfg.N)
-
+    log(f"Train on {accelerator.device}")
+    Trainer(
+        model,
+        train_loader,
+        accelerator,
+        make_opt=lambda params: torch.optim.Adam(params, lr=cfg.lr),
+        config=cfg,
+        results_path=handle_results_path(cfg.results_path),
+    ).train()
+    Evaluator(
+        model,
+        val_loader,
+        accelerator,
+        config=cfg,
+        checkpoint_path=handle_results_path(cfg.results_path) / "model.pt",
+    ).evaluate()
 
 class Trainer:
-    def __init__(self, model, train_loader, accelerator, make_opt, config, results_path, is_before: bool):
+    def __init__(self, model, train_loader, accelerator, make_opt, config, results_path):
         super().__init__()
         self.model = accelerator.prepare(model)
         self.train_loader = train_loader
@@ -71,13 +85,10 @@ class Trainer:
         self.critierion = torch.nn.MSELoss()
         self.cfg = config
         self.results_path = results_path
-        self.is_before = is_before
         self.device = self.accelerator.device
         print('Train on', self.device)
         self.model.to(self.device)
-        self.checkpoint_path = self.results_path / f"model_{'before' if is_before else 'after'}.pt"
-
-        self.step = 0
+        self.checkpoint_path = self.results_path / f"model.pt"
 
         self.results_path.mkdir(parents=True, exist_ok=True)
         with open(self.results_path / "config.yaml", "w") as f:
@@ -85,42 +96,16 @@ class Trainer:
 
     def train(self):
         loss_list = []
-        with tqdm(
-            initial=self.step,
-            total=self.cfg.epochs,
-            disable=not self.accelerator.is_main_process,
-        ) as pbar:
-            iter_data = iter(self.train_loader)
-            while self.step < self.cfg.epochs:
-                try:
-                    inputs, targets = next(iter_data)
-                except StopIteration:
-                    iter_data = iter(self.train_loader)
-                    inputs, targets = next(iter_data)
-                inputs = inputs.unsqueeze(1)
-                targets = targets.unsqueeze(1)
-                """if self.is_before:
-                    # 划分出前6000列
-                    inputs = inputs[:, :, 6000:]
-                    targets = targets[:, :, 6000:]
-                else:
-                    # 划分出6000列之后的数据
-                    inputs = inputs[:, :, 6000:]
-                    targets = targets[:, :, 6000:]"""
-                inputs, targets = inputs.to(self.device), targets.to(self.device)
+        for epoch in tqdm(range(self.cfg.epochs)):
+            for x, y in self.train_loader:
+                x, y = x.to(self.device), y.to(self.device)
                 self.opt.zero_grad()
-                outputs = self.model(inputs)
-                loss = self.critierion(outputs, targets)
+                y_pred = self.model(x)
+                loss = self.critierion(y_pred, y)
                 self.accelerator.backward(loss)
-                if self.cfg.clip_grad_norm:
-                    self.accelerator.clip_grad_norm_(self.model.parameters(), 1.0)
                 self.opt.step()
                 loss_list.append(loss.item())
-                min_position = loss_list.index(min(loss_list)) + 1
-                pbar.set_description(f"Loss: {loss.item():.18f}; min_position: {min_position}")
-                self.step += 1
-                self.accelerator.wait_for_everyone()
-                pbar.update()
+            print(f'Epoch {epoch+1}/{self.cfg.epochs}, Loss: {loss.item()}')
         
         with open('loss_list.txt', 'w') as f:
             print(loss_list, file=f)
@@ -148,3 +133,46 @@ class Trainer:
         torch.save(checkpoint, checkpoint_path)
         log(f"Saved model to {checkpoint_path}")
     
+class Evaluator:
+    def __init__(self, model, val_loader, accelerator, config, checkpoint_path):
+        super().__init__()
+        self.model = accelerator.prepare(model)
+        self.val_loader = val_loader
+        self.accelerator = accelerator
+        self.cfg = config
+        self.device = self.accelerator.device
+        self.model.to(self.device)
+        self.checkpoint_path = checkpoint_path
+
+    def evaluate(self):
+        checkpoint = torch.load(self.checkpoint_path, map_location=self.device)
+        self.model.load_state_dict(checkpoint["model"])
+        self.model.eval()
+        loss_list = []
+        y_pred_list = []
+        y_true_list = []
+        x_list = []
+        for x, y in self.val_loader:
+            x, y = x.to(self.device), y.to(self.device)
+            with torch.no_grad():
+                y_pred = self.model(x)
+            loss = torch.nn.MSELoss()(y_pred, y)
+            loss_list.append(loss.item())
+            y_pred = y_pred.cpu().numpy()
+            y_true = y.cpu().numpy()
+            x = x.cpu().numpy()
+            y_pred_list.append(y_pred)
+            y_true_list.append(y_true)
+            x_list.append(x)
+            del x, y, y_pred, y_true
+            torch.cuda.empty_cache()
+        
+        print(f'Loss: {np.mean(loss_list)}')
+        y_pred_list = np.concatenate(y_pred_list)
+        y_true_list = np.concatenate(y_true_list)
+        x_list = np.concatenate(x_list)
+        # 画出预测结果
+        plt.scatter(x_list, y_true_list, label='True')
+        plt.scatter(x_list, y_pred_list, label='Pred')
+        plt.legend()
+        plt.savefig('eval.png')

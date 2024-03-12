@@ -14,18 +14,15 @@ from accelerate import Accelerator
 
 @dataclass
 class TrainConfig:
+    N: int
     input_size: int
     hidden_size_1: int
     hidden_size_2: int
+    act_fn: str
     batch_size: int
     lr: float
     seed: int
-    weight_decay: float
-    clip_grad_norm: bool
-    evaluate: bool
     results_path: str
-    data_path_x: str
-    data_path_y: str
     epochs: int
 
 def func(x):
