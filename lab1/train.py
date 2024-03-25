@@ -10,6 +10,7 @@ import numpy as np
 from accelerate import Accelerator
 from accelerate.utils import set_seed
 from pathlib import Path
+from typing import Optional
 
 from tqdm import tqdm
 
@@ -34,14 +35,14 @@ def main():
 
     # Architecture
     parser.add_argument("--input-size", type=int, default=1)
-    parser.add_argument("--hidden-size-1", type=int, default=64)
-    parser.add_argument("--hidden-size-2", type=int, default=32)
+    parser.add_argument("--hidden-size", type=int, default=256)
+    parser.add_argument("--n-muti-layers", type=int, default=2)
     parser.add_argument("--act-fn", type=str, default="relu")
 
     # Training
     parser.add_argument("--batch-size", type=int, default=64)
-    parser.add_argument("--lr", type=float, default=2e-4)
-    parser.add_argument("--seed", type=int, default=12345)
+    parser.add_argument("--lr", type=float, default=2e-6)
+    parser.add_argument("--seed", type=int, default=123)
 
     parser.add_argument("--results-path", type=str, default=None)
     parser.add_argument("--epochs", type=int, default=1_000)
@@ -57,7 +58,7 @@ def main():
     model = MLP(cfg)
     print_model_summary(model, batch_size=cfg.batch_size,shape=(1, 1), batch_size_torchinfo=cfg.batch_size)
     with accelerator.local_main_process_first():
-        train_loader, val_loader, test_loader = make_dataloader(cfg.N)
+        train_loader, val_loader, test_loader = make_dataloader(cfg.N, cfg.batch_size)
     log(f"Train on {accelerator.device}")
     Trainer(
         model,
@@ -72,14 +73,27 @@ def main():
         val_loader,
         accelerator,
         config=cfg,
-        checkpoint_path=handle_results_path(cfg.results_path) / "model.pt",
+        results_path=handle_results_path(cfg.results_path),
     ).evaluate()
 
 class Trainer:
-    def __init__(self, model, train_loader, accelerator, make_opt, config, results_path):
+    """
+    Trainer of the model
+
+    Args:
+        - model: the model to train
+        - train_loader: the training data loader
+        - accelerator: the accelerator
+        - make_opt: a function that takes the model parameters and returns an optimizer
+        - config: the configuration
+        - results_path: the path to save the results
+        - var_loader: optional, the validation data loader
+    """
+    def __init__(self, model, train_loader, accelerator, make_opt, config, results_path, var_loader: Optional[torch.utils.data.DataLoader] = None):
         super().__init__()
         self.model = accelerator.prepare(model)
         self.train_loader = train_loader
+        self.var_loader = var_loader
         self.accelerator = accelerator
         self.opt = accelerator.prepare(make_opt(self.model.parameters()))
         self.critierion = torch.nn.MSELoss()
@@ -98,6 +112,7 @@ class Trainer:
         loss_list = []
         for epoch in tqdm(range(self.cfg.epochs)):
             for x, y in self.train_loader:
+                x, y = x.float(), y.float()
                 x, y = x.to(self.device), y.to(self.device)
                 self.opt.zero_grad()
                 y_pred = self.model(x)
@@ -105,19 +120,27 @@ class Trainer:
                 self.accelerator.backward(loss)
                 self.opt.step()
                 loss_list.append(loss.item())
-            print(f'Epoch {epoch+1}/{self.cfg.epochs}, Loss: {loss.item()}')
+            if self.var_loader is not None:
+                for x, y in self.var_loader:
+                    x, y = x.float(), y.float()
+                    x, y = x.to(self.device), y.to(self.device)
+                    self.opt.zero_grad()
+                    y_pred = self.model(x)
+                    loss = self.critierion(y_pred, y)
+                    self.accelerator.backward(loss)
+                    self.opt.step()
+                    loss_list.append(loss.item())
         
-        with open('loss_list.txt', 'w') as f:
+        with open(self.results_path / 'loss_list.txt', 'w') as f:
             print(loss_list, file=f)
         plt.plot(loss_list)
-        plt.savefig('loss_list.png')
+        plt.savefig(self.results_path / 'loss_list.png')
         
-
         self.save()
 
     def save(self):
         """
-        把模型保存到指定路径
+        Save model to checkpoint_path
         """
         self.model.eval()
         checkpoint_path = Path(self.checkpoint_path)
@@ -132,9 +155,21 @@ class Trainer:
         }
         torch.save(checkpoint, checkpoint_path)
         log(f"Saved model to {checkpoint_path}")
+        if self.var_loader is not None:
+            return checkpoint_path
     
 class Evaluator:
-    def __init__(self, model, val_loader, accelerator, config, checkpoint_path):
+    """
+    Evaluate the model on the validation set
+
+    Args:
+        - model: the model to evaluate
+        - val_loader: the validation data loader
+        - accelerator: the accelerator
+        - config: the configuration
+        - results_path: the path to save the results
+    """
+    def __init__(self, model, val_loader, accelerator, config, results_path):
         super().__init__()
         self.model = accelerator.prepare(model)
         self.val_loader = val_loader
@@ -142,7 +177,8 @@ class Evaluator:
         self.cfg = config
         self.device = self.accelerator.device
         self.model.to(self.device)
-        self.checkpoint_path = checkpoint_path
+        self.results_path = results_path
+        self.checkpoint_path = results_path / "model.pt"
 
     def evaluate(self):
         checkpoint = torch.load(self.checkpoint_path, map_location=self.device)
@@ -153,6 +189,7 @@ class Evaluator:
         y_true_list = []
         x_list = []
         for x, y in self.val_loader:
+            x, y = x.float(), y.float()
             x, y = x.to(self.device), y.to(self.device)
             with torch.no_grad():
                 y_pred = self.model(x)
@@ -167,12 +204,16 @@ class Evaluator:
             del x, y, y_pred, y_true
             torch.cuda.empty_cache()
         
-        print(f'Loss: {np.mean(loss_list)}')
+        print(f'Loss_mean: {np.mean(loss_list)}')
         y_pred_list = np.concatenate(y_pred_list)
         y_true_list = np.concatenate(y_true_list)
         x_list = np.concatenate(x_list)
-        # 画出预测结果
+
+        plt.figure()
         plt.scatter(x_list, y_true_list, label='True')
         plt.scatter(x_list, y_pred_list, label='Pred')
         plt.legend()
-        plt.savefig('eval.png')
+        plt.savefig(self.results_path / 'eval.png')
+
+if __name__ == "__main__":
+    main()

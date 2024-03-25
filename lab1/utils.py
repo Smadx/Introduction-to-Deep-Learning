@@ -16,8 +16,8 @@ from accelerate import Accelerator
 class TrainConfig:
     N: int
     input_size: int
-    hidden_size_1: int
-    hidden_size_2: int
+    hidden_size: int
+    n_muti_layers: int
     act_fn: str
     batch_size: int
     lr: float
@@ -29,6 +29,9 @@ def func(x):
     return np.log2(x) + np.cos(np.pi * x * 0.5)
 
 class FunctionDataset(Dataset):
+    """
+    The dataset for the function.
+    """
     def __init__(self, N: int):
         self.x = np.linspace(1, 16, N)
         self.y = func(self.x)
@@ -37,16 +40,28 @@ class FunctionDataset(Dataset):
         return len(self.x)
     
     def __getitem__(self, idx):
-        return self.x[idx], self.y[idx]
+        x = self.x[idx]
+        y = self.y[idx]
 
-def print_model_summary(model, *, batch_size, shape, depth=3, batch_size_torchinfo=1):
-    # 打印模型概览
+        x = torch.tensor([x])
+        y = torch.tensor([y])
+        return x, y
+
+def print_model_summary(model, *, batch_size, shape, depth=4, batch_size_torchinfo=1):
+    """
+    Args:
+        - model: the model to summarize
+        - batch_size: the batch size to use for the summary
+        - shape: the shape of the input tensor
+        - depth: the depth of the summary
+        - batch_size_torchinfo: the batch size to use for torchinfo
+    """
     summary = torchinfo.summary(
         model,
-        [(batch_size_torchinfo, *shape)],  # 模型输入尺寸
+        [(batch_size_torchinfo, *shape)],  # Input shape
         depth=depth,
         col_names=["input_size", "output_size", "num_params"],
-        verbose=0,  # 不显示额外信息
+        verbose=0,  # no text output
     )
     log(summary)
     if batch_size is None or batch_size == batch_size_torchinfo:
@@ -63,7 +78,16 @@ def print_model_summary(model, *, batch_size, shape, depth=3, batch_size_torchin
 
 def make_dataloader(N: int, batch_size: int)-> DataLoader:
     """
-    从path中加载数据集,按照8:1:1比例划分训练集、验证集和测试集,并返回DataLoader
+    Make dataloader for the function dataset at N points.
+    
+    Args:
+        - N: number of points in the dataset
+        - batch_size: the batch size to use
+
+    Returns:
+        - train_loader: the training dataloader
+        - val_loader: the validation dataloader
+        - test_loader: the test dataloader
     """
     dataset = FunctionDataset(N)
     n = len(dataset)
@@ -98,7 +122,7 @@ def zero_init(module: nn.Module) -> nn.Module:
 
 def init_config_from_args(cls, args):
     """
-    从args中初始化配置
+    Initialize a dataclass from a Namespace.
     """
     return cls(**{f.name: getattr(args, f.name) for f in dataclasses.fields(cls)})
 
