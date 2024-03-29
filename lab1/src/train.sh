@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=2,3 \
+CUDA_VISIBLE_DEVICES=2 \
 nohup accelerate launch --config_file accelerate_config.yaml train.py \
     --N 10000 \
     --results-path results/test5/ \

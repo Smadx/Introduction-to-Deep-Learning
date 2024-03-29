@@ -20,7 +20,7 @@ from utils import (
     print_model_summary,
 )
 
-from train import Trainer
+from src.train import Trainer
 
 from model import MLP
 
