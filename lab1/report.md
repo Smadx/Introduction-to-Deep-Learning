@@ -12,7 +12,8 @@ $$y=\log_2(x)+\cos(\frac{\pi x}{2}),x\in [1,16]$$
 ### 2.网络结构
 根据训练配置文件搭建网络结构,隐藏层的features分别为: 
 $$[hidden\_size, hidden\_size * 2, hidden\_size * 4, \cdots , hidden\_size * 4, hidden\_size * 2, hidden\_size]$$
-可选择的激活函数分别为:Sigmoid, ReLu, Tanh, SiLU 
+可选择的激活函数分别为:Sigmoid, ReLu, Tanh, SiLU  
+``model``定义如下:
 ```python
 class MLP(nn.Module):
     def __init__(self, cfg):
@@ -55,6 +56,8 @@ class MLP(nn.Module):
         x = self.layer_out(x)
         return x
 ```
+以N=200时为例,我使用的网络结构为: 
+![](/static/model_info.png)
 ### 3.训练过程
 1. 首先读取配置文件,并设置随机种子,根据配置文件初始化模型
 2. 使用``print_model_summary``函数打印模型结构
@@ -62,6 +65,7 @@ class MLP(nn.Module):
 4. 把所需参数和配置文件导入``Trainer``类,损失函数为``MSE``,优化器为``Adam``
 5. 训练完成后加载``Evaluator``类,评估模型在验证集上的性能
 6. 选择一组合适的超参数
+``Trainer``类定义如下:
 ```python
 class Trainer:
     """
@@ -150,6 +154,7 @@ class Trainer:
 2. 读取数据集,并将数据集分为训练集,验证集,测试集
 3. 把所需参数和配置文件导入``Trainer``类,这次把训练集和验证集都用于训练
 4. 训练完成后再测试集上评估模型的性能,并画出拟合的曲线与真实曲线的比较
+``Evaluator``定义如下:
 ```python
 class Evaluator:
     """
@@ -277,26 +282,56 @@ python eval.py
 2. ``hidden-size``: 第一层隐藏层的features数量,决定模型的宽度,宽度不够时容易拟合出一条直线,当复杂度太大时会出现过拟合
 3. ``n-muti-layers``: 隐藏层features增长层的数量,决定模型的深度,深度不够时容易拟合出一条直线,当复杂度太大时会出现过拟合
 4. ``act-fn``: 激活函数类型,当层数较深时使用Sigmoid这种函数会出现梯度爆炸/消失等情况,目前来看ReLU更好
-5. ``batch-size``: 批量大小,当N=200时我们把整个数据集作为一个batch,这样使得训练比较稳定,当数据集较大时我们选择batch-size=128,节省显存
+5. ``batch-size``: 批量大小,当N=200时我们把整个数据集作为一个batch,这样使得训练比较稳定,当数据集较大时我们选择batch-size=64,节省显存
 6. ``lr``: 由于我们选用了较大的batch,我们同时使用较大的学习率2e-4,这样模型收敛较快,并且采用Adam算法自适应调整学习率大小
 7. ``seed``: 用于划分数据集和复现结果,影响不是很大
 8. ``epoch``: 数据集较小时需要更多的epoch,数据集较大时可以用更少的epoch达到比较不错的效果
 下面给出我实验后给每个N值合适的超参数配置:
 #### N=200
 ```yaml
-
+N: 200
+act_fn: relu
+batch_size: 200
+epochs: 5000
+hidden_size: 128
+input_size: 1
+lr: 0.0002
+n_muti_layers: 2
+results_path: results/test6/
+seed: 123
 ```
-$MSE=$ 
-效果图:
+$MSE=0.00047427104436792433$ 
+效果图: 
+![](/static/eval200.png)
 #### N=2000
 ```yaml
-
+N: 2000
+act_fn: relu
+batch_size: 128
+epochs: 5000
+hidden_size: 128
+input_size: 1
+lr: 0.0002
+n_muti_layers: 3
+results_path: results/test5/
+seed: 123
 ```
-$MSE$ 
-效果图:
+$MSE=0.000972279260167852$ 
+效果图: 
+![](/static/eval2000.png)
 #### N=10000
 ```yaml
-
+N: 10000
+act_fn: relu
+batch_size: 64
+epochs: 1000
+hidden_size: 256
+input_size: 1
+lr: 2.0e-06
+n_muti_layers: 2
+results_path: results/test4/
+seed: 123
 ```
-$MSE$ 
-效果图:
+$MSE=7.723650116986391e-05$ 
+效果图: 
+![](/static/eval10000.png)

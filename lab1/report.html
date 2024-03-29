@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Lab1</title>
+            <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only],
+.vscode-high-contrast:not(.vscode-high-contrast-light) img[src$=\#gh-light-mode-only],
+.vscode-high-contrast-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+</style>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.css">
+<link href="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.css" rel="stylesheet" type="text/css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+<style>
+:root {
+  --color-note: #0969da;
+  --color-tip: #1a7f37;
+  --color-warning: #9a6700;
+  --color-severe: #bc4c00;
+  --color-caution: #d1242f;
+  --color-important: #8250df;
+}
+
+</style>
+<style>
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-note: #2f81f7;
+    --color-tip: #3fb950;
+    --color-warning: #d29922;
+    --color-severe: #db6d28;
+    --color-caution: #f85149;
+    --color-important: #a371f7;
+  }
+}
+
+</style>
+<style>
+.markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 16px;
+  color: inherit;
+  border-left: .25em solid #888;
+}
+
+.markdown-alert>:first-child {
+  margin-top: 0
+}
+
+.markdown-alert>:last-child {
+  margin-bottom: 0
+}
+
+.markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1
+}
+
+.markdown-alert .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  display: inline-block;
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-caution);
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-caution);
+}
+
+</style>
+        
+        </head>
+        <body class="vscode-body vscode-light">
+            <h1 id="lab1">Lab1</h1>
+<h2 id="实验目的">实验目的</h2>
+<p>使用前馈神经网络拟合函数</p>
+<p class="katex-block"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>y</mi><mo>=</mo><msub><mrow><mi>log</mi><mo>⁡</mo></mrow><mn>2</mn></msub><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>+</mo><mi>cos</mi><mo>⁡</mo><mo stretchy="false">(</mo><mfrac><mrow><mi>π</mi><mi>x</mi></mrow><mn>2</mn></mfrac><mo stretchy="false">)</mo><mo separator="true">,</mo><mi>x</mi><mo>∈</mo><mo stretchy="false">[</mo><mn>1</mn><mo separator="true">,</mo><mn>16</mn><mo stretchy="false">]</mo></mrow><annotation encoding="application/x-tex">y=\log_2(x)+\cos(\frac{\pi x}{2}),x\in [1,16]
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.625em;vertical-align:-0.1944em;"></span><span class="mord mathnormal" style="margin-right:0.03588em;">y</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mop"><span class="mop">lo<span style="margin-right:0.01389em;">g</span></span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.207em;"><span style="top:-2.4559em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2441em;"><span></span></span></span></span></span></span><span class="mopen">(</span><span class="mord mathnormal">x</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1.7936em;vertical-align:-0.686em;"></span><span class="mop">cos</span><span class="mopen">(</span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.1076em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">2</span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.03588em;">π</span><span class="mord mathnormal">x</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.686em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mclose">)</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">x</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">∈</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mopen">[</span><span class="mord">1</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord">16</span><span class="mclose">]</span></span></span></span></span></p>
+<h2 id="实验原理">实验原理</h2>
+<h3 id="1代码框架">1.代码框架</h3>
+<ol>
+<li><code>utils.py</code>: 工具函数包</li>
+<li><code>model.py</code>: 前馈神经网络模型</li>
+<li><code>train.py</code>: 训练脚本,并在验证集上评估模型性能</li>
+<li><code>eval.py</code>: 在测试集上评估模型性能</li>
+<li><code>accelerate_config.ymal</code>: 配置文件</li>
+</ol>
+<h3 id="2网络结构">2.网络结构</h3>
+<p>根据训练配置文件搭建网络结构,隐藏层的features分别为:</p>
+<p class="katex-block"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mo stretchy="false">[</mo><mi>h</mi><mi>i</mi><mi>d</mi><mi>d</mi><mi>e</mi><mi>n</mi><mi mathvariant="normal">_</mi><mi>s</mi><mi>i</mi><mi>z</mi><mi>e</mi><mo separator="true">,</mo><mi>h</mi><mi>i</mi><mi>d</mi><mi>d</mi><mi>e</mi><mi>n</mi><mi mathvariant="normal">_</mi><mi>s</mi><mi>i</mi><mi>z</mi><mi>e</mi><mo>∗</mo><mn>2</mn><mo separator="true">,</mo><mi>h</mi><mi>i</mi><mi>d</mi><mi>d</mi><mi>e</mi><mi>n</mi><mi mathvariant="normal">_</mi><mi>s</mi><mi>i</mi><mi>z</mi><mi>e</mi><mo>∗</mo><mn>4</mn><mo separator="true">,</mo><mo>⋯</mo><mtext> </mtext><mo separator="true">,</mo><mi>h</mi><mi>i</mi><mi>d</mi><mi>d</mi><mi>e</mi><mi>n</mi><mi mathvariant="normal">_</mi><mi>s</mi><mi>i</mi><mi>z</mi><mi>e</mi><mo>∗</mo><mn>4</mn><mo separator="true">,</mo><mi>h</mi><mi>i</mi><mi>d</mi><mi>d</mi><mi>e</mi><mi>n</mi><mi mathvariant="normal">_</mi><mi>s</mi><mi>i</mi><mi>z</mi><mi>e</mi><mo>∗</mo><mn>2</mn><mo separator="true">,</mo><mi>h</mi><mi>i</mi><mi>d</mi><mi>d</mi><mi>e</mi><mi>n</mi><mi mathvariant="normal">_</mi><mi>s</mi><mi>i</mi><mi>z</mi><mi>e</mi><mo stretchy="false">]</mo></mrow><annotation encoding="application/x-tex">[hidden\_size, hidden\_size * 2, hidden\_size * 4, \cdots , hidden\_size * 4, hidden\_size * 2, hidden\_size]
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1.06em;vertical-align:-0.31em;"></span><span class="mopen">[</span><span class="mord mathnormal">hi</span><span class="mord mathnormal">dd</span><span class="mord mathnormal">e</span><span class="mord mathnormal">n</span><span class="mord" style="margin-right:0.02778em;">_</span><span class="mord mathnormal">s</span><span class="mord mathnormal">i</span><span class="mord mathnormal">ze</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">hi</span><span class="mord mathnormal">dd</span><span class="mord mathnormal">e</span><span class="mord mathnormal">n</span><span class="mord" style="margin-right:0.02778em;">_</span><span class="mord mathnormal">s</span><span class="mord mathnormal">i</span><span class="mord mathnormal">ze</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">∗</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1.0044em;vertical-align:-0.31em;"></span><span class="mord">2</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">hi</span><span class="mord mathnormal">dd</span><span class="mord mathnormal">e</span><span class="mord mathnormal">n</span><span class="mord" style="margin-right:0.02778em;">_</span><span class="mord mathnormal">s</span><span class="mord mathnormal">i</span><span class="mord mathnormal">ze</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">∗</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1.0044em;vertical-align:-0.31em;"></span><span class="mord">4</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="minner">⋯</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">hi</span><span class="mord mathnormal">dd</span><span class="mord mathnormal">e</span><span class="mord mathnormal">n</span><span class="mord" style="margin-right:0.02778em;">_</span><span class="mord mathnormal">s</span><span class="mord mathnormal">i</span><span class="mord mathnormal">ze</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">∗</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1.0044em;vertical-align:-0.31em;"></span><span class="mord">4</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">hi</span><span class="mord mathnormal">dd</span><span class="mord mathnormal">e</span><span class="mord mathnormal">n</span><span class="mord" style="margin-right:0.02778em;">_</span><span class="mord mathnormal">s</span><span class="mord mathnormal">i</span><span class="mord mathnormal">ze</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">∗</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1.06em;vertical-align:-0.31em;"></span><span class="mord">2</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal">hi</span><span class="mord mathnormal">dd</span><span class="mord mathnormal">e</span><span class="mord mathnormal">n</span><span class="mord" style="margin-right:0.02778em;">_</span><span class="mord mathnormal">s</span><span class="mord mathnormal">i</span><span class="mord mathnormal">ze</span><span class="mclose">]</span></span></span></span></span></p>
+<p>可选择的激活函数分别为:Sigmoid, ReLu, Tanh, SiLU<br>
+<code>model</code>定义如下:</p>
+<pre><code class="language-python"><span class="hljs-keyword">class</span> <span class="hljs-title class_">MLP</span>(nn.Module):
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">__init__</span>(<span class="hljs-params">self, cfg</span>):
+        <span class="hljs-built_in">super</span>(MLP, self).__init__()
+
+        <span class="hljs-comment"># Activation function</span>
+        <span class="hljs-keyword">if</span> cfg.act_fn == <span class="hljs-string">&quot;sigmoid&quot;</span>:
+            self.act_fn = F.sigmoid
+        <span class="hljs-keyword">elif</span> cfg.act_fn == <span class="hljs-string">&quot;relu&quot;</span>:
+            self.act_fn = F.relu
+        <span class="hljs-keyword">elif</span> cfg.act_fn == <span class="hljs-string">&quot;tanh&quot;</span>:
+            self.act_fn = F.tanh
+        <span class="hljs-keyword">elif</span> cfg.act_fn == <span class="hljs-string">&quot;silu&quot;</span>:
+            self.act_fn = F.silu
+        <span class="hljs-keyword">else</span>:
+            <span class="hljs-keyword">raise</span> ValueError(<span class="hljs-string">&quot;Not supported activation function&quot;</span>)
+        
+        <span class="hljs-comment"># Layers    </span>
+        self.layer_in = nn.Linear(<span class="hljs-number">1</span>, cfg.hidden_size)
+        self.feature_size = [cfg.hidden_size * (<span class="hljs-number">2</span> ** i) <span class="hljs-keyword">for</span> i <span class="hljs-keyword">in</span> <span class="hljs-built_in">range</span>(cfg.n_muti_layers + <span class="hljs-number">1</span>)]
+
+        self.layers = nn.ModuleList([])
+
+        <span class="hljs-keyword">for</span> i <span class="hljs-keyword">in</span> <span class="hljs-built_in">range</span>(cfg.n_muti_layers):
+            self.layers.add_module(<span class="hljs-string">f&quot;diff_layer_<span class="hljs-subst">{i}</span>&quot;</span>, nn.Linear(self.feature_size[i], self.feature_size[i+<span class="hljs-number">1</span>]))
+
+        self.layers.add_module(<span class="hljs-string">&quot;mid_layer&quot;</span>, nn.Linear(self.feature_size[-<span class="hljs-number">1</span>], self.feature_size[-<span class="hljs-number">1</span>]))
+
+        self.feature_size = <span class="hljs-built_in">list</span>(<span class="hljs-built_in">reversed</span>(self.feature_size))
+        <span class="hljs-keyword">for</span> i <span class="hljs-keyword">in</span> <span class="hljs-built_in">range</span>(cfg.n_muti_layers):
+            self.layers.add_module(<span class="hljs-string">f&quot;coll_layer_<span class="hljs-subst">{i}</span>&quot;</span>, nn.Linear(self.feature_size[i], self.feature_size[i+<span class="hljs-number">1</span>]))
+
+        self.layer_out = nn.Linear(cfg.hidden_size, <span class="hljs-number">1</span>)
+        
+        
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">forward</span>(<span class="hljs-params">self, x</span>):
+        x = self.act_fn(self.layer_in(x))
+        <span class="hljs-keyword">for</span> i, layer <span class="hljs-keyword">in</span> <span class="hljs-built_in">enumerate</span>(self.layers):
+            x = self.act_fn(layer(x))
+        x = self.layer_out(x)
+        <span class="hljs-keyword">return</span> x
+</code></pre>
+<p>以N=200时为例,我使用的网络结构为:
+<img src="file:///d:\LMZ\小数据专业课\Deep Learning\Introduction-to-Deep-Learning\lab1\model_info.png" alt=""></p>
+<h3 id="3训练过程">3.训练过程</h3>
+<ol>
+<li>首先读取配置文件,并设置随机种子,根据配置文件初始化模型</li>
+<li>使用<code>print_model_summary</code>函数打印模型结构</li>
+<li>读取数据集,并将数据集分为训练集,验证集,测试集</li>
+<li>把所需参数和配置文件导入<code>Trainer</code>类,损失函数为<code>MSE</code>,优化器为<code>Adam</code></li>
+<li>训练完成后加载<code>Evaluator</code>类,评估模型在验证集上的性能</li>
+<li>选择一组合适的超参数
+<code>Trainer</code>类定义如下:</li>
+</ol>
+<pre><code class="language-python"><span class="hljs-keyword">class</span> <span class="hljs-title class_">Trainer</span>:
+    <span class="hljs-string">&quot;&quot;&quot;
+    Trainer of the model
+
+    Args:
+        - model: the model to train
+        - train_loader: the training data loader
+        - accelerator: the accelerator
+        - make_opt: a function that takes the model parameters and returns an optimizer
+        - config: the configuration
+        - results_path: the path to save the results
+        - var_loader: optional, the validation data loader
+    &quot;&quot;&quot;</span>
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">__init__</span>(<span class="hljs-params">self, model, train_loader, accelerator, make_opt, config, results_path, var_loader: <span class="hljs-type">Optional</span>[torch.utils.data.DataLoader] = <span class="hljs-literal">None</span></span>):
+        <span class="hljs-built_in">super</span>().__init__()
+        self.model = accelerator.prepare(model)
+        self.train_loader = train_loader
+        self.var_loader = var_loader
+        self.accelerator = accelerator
+        self.opt = accelerator.prepare(make_opt(self.model.parameters()))
+        self.critierion = torch.nn.MSELoss()
+        self.cfg = config
+        self.results_path = results_path
+        self.device = self.accelerator.device
+        <span class="hljs-built_in">print</span>(<span class="hljs-string">&#x27;Train on&#x27;</span>, self.device)
+        self.model.to(self.device)
+        self.checkpoint_path = self.results_path / <span class="hljs-string">f&quot;model.pt&quot;</span>
+
+        self.results_path.mkdir(parents=<span class="hljs-literal">True</span>, exist_ok=<span class="hljs-literal">True</span>)
+        <span class="hljs-keyword">with</span> <span class="hljs-built_in">open</span>(self.results_path / <span class="hljs-string">&quot;config.yaml&quot;</span>, <span class="hljs-string">&quot;w&quot;</span>) <span class="hljs-keyword">as</span> f:
+            yaml.dump(dataclasses.asdict(self.cfg), f)
+
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">train</span>(<span class="hljs-params">self</span>):
+        loss_list = []
+        <span class="hljs-keyword">for</span> epoch <span class="hljs-keyword">in</span> tqdm(<span class="hljs-built_in">range</span>(self.cfg.epochs)):
+            <span class="hljs-keyword">for</span> x, y <span class="hljs-keyword">in</span> self.train_loader:
+                x, y = x.<span class="hljs-built_in">float</span>(), y.<span class="hljs-built_in">float</span>()
+                x, y = x.to(self.device), y.to(self.device)
+                self.opt.zero_grad()
+                y_pred = self.model(x)
+                loss = self.critierion(y_pred, y)
+                self.accelerator.backward(loss)
+                self.opt.step()
+                loss_list.append(loss.item())
+            <span class="hljs-keyword">if</span> self.var_loader <span class="hljs-keyword">is</span> <span class="hljs-keyword">not</span> <span class="hljs-literal">None</span>:
+                <span class="hljs-keyword">for</span> x, y <span class="hljs-keyword">in</span> self.var_loader:
+                    x, y = x.<span class="hljs-built_in">float</span>(), y.<span class="hljs-built_in">float</span>()
+                    x, y = x.to(self.device), y.to(self.device)
+                    self.opt.zero_grad()
+                    y_pred = self.model(x)
+                    loss = self.critierion(y_pred, y)
+                    self.accelerator.backward(loss)
+                    self.opt.step()
+                    loss_list.append(loss.item())
+        
+        <span class="hljs-keyword">with</span> <span class="hljs-built_in">open</span>(self.results_path / <span class="hljs-string">&#x27;loss_list.txt&#x27;</span>, <span class="hljs-string">&#x27;w&#x27;</span>) <span class="hljs-keyword">as</span> f:
+            <span class="hljs-built_in">print</span>(loss_list, file=f)
+        plt.plot(loss_list)
+        plt.savefig(self.results_path / <span class="hljs-string">&#x27;loss_list.png&#x27;</span>)
+        
+        self.save()
+
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">save</span>(<span class="hljs-params">self</span>):
+        <span class="hljs-string">&quot;&quot;&quot;
+        Save model to checkpoint_path
+        &quot;&quot;&quot;</span>
+        self.model.<span class="hljs-built_in">eval</span>()
+        checkpoint_path = Path(self.checkpoint_path)
+        checkpoint_dir = checkpoint_path.parent
+
+        <span class="hljs-keyword">if</span> <span class="hljs-keyword">not</span> os.path.exists(checkpoint_dir):
+            os.makedirs(checkpoint_dir)
+
+        checkpoint = {
+            <span class="hljs-string">&quot;model&quot;</span>: self.accelerator.get_state_dict(self.model),
+            <span class="hljs-string">&quot;opt&quot;</span>: self.opt.state_dict(),
+        }
+        torch.save(checkpoint, checkpoint_path)
+        log(<span class="hljs-string">f&quot;Saved model to <span class="hljs-subst">{checkpoint_path}</span>&quot;</span>)
+        <span class="hljs-keyword">if</span> self.var_loader <span class="hljs-keyword">is</span> <span class="hljs-keyword">not</span> <span class="hljs-literal">None</span>:
+            <span class="hljs-keyword">return</span> checkpoint_path
+</code></pre>
+<h3 id="4评估过程">4.评估过程</h3>
+<ol>
+<li>读取配置文件,并设置随机种子,根据配置文件初始化模型</li>
+<li>读取数据集,并将数据集分为训练集,验证集,测试集</li>
+<li>把所需参数和配置文件导入<code>Trainer</code>类,这次把训练集和验证集都用于训练</li>
+<li>训练完成后再测试集上评估模型的性能,并画出拟合的曲线与真实曲线的比较
+<code>Evaluator</code>定义如下:</li>
+</ol>
+<pre><code class="language-python"><span class="hljs-keyword">class</span> <span class="hljs-title class_">Evaluator</span>:
+    <span class="hljs-string">&quot;&quot;&quot;
+    Evaluate the model on the validation set
+
+    Args:
+        - model: the model to evaluate
+        - val_loader: the validation data loader
+        - accelerator: the accelerator
+        - config: the configuration
+        - results_path: the path to save the results
+    &quot;&quot;&quot;</span>
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">__init__</span>(<span class="hljs-params">self, model, val_loader, accelerator, config, results_path</span>):
+        <span class="hljs-built_in">super</span>().__init__()
+        self.model = accelerator.prepare(model)
+        self.val_loader = val_loader
+        self.accelerator = accelerator
+        self.cfg = config
+        self.device = self.accelerator.device
+        self.model.to(self.device)
+        self.results_path = results_path
+        self.checkpoint_path = results_path / <span class="hljs-string">&quot;model.pt&quot;</span>
+
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">evaluate</span>(<span class="hljs-params">self</span>):
+        checkpoint = torch.load(self.checkpoint_path, map_location=self.device)
+        self.model.load_state_dict(checkpoint[<span class="hljs-string">&quot;model&quot;</span>])
+        self.model.<span class="hljs-built_in">eval</span>()
+        loss_list = []
+        y_pred_list = []
+        y_true_list = []
+        x_list = []
+        <span class="hljs-keyword">for</span> x, y <span class="hljs-keyword">in</span> self.val_loader:
+            x, y = x.<span class="hljs-built_in">float</span>(), y.<span class="hljs-built_in">float</span>()
+            x, y = x.to(self.device), y.to(self.device)
+            <span class="hljs-keyword">with</span> torch.no_grad():
+                y_pred = self.model(x)
+            loss = torch.nn.MSELoss()(y_pred, y)
+            loss_list.append(loss.item())
+            y_pred = y_pred.cpu().numpy()
+            y_true = y.cpu().numpy()
+            x = x.cpu().numpy()
+            y_pred_list.append(y_pred)
+            y_true_list.append(y_true)
+            x_list.append(x)
+            <span class="hljs-keyword">del</span> x, y, y_pred, y_true
+            torch.cuda.empty_cache()
+        
+        <span class="hljs-built_in">print</span>(<span class="hljs-string">f&#x27;Loss_mean: <span class="hljs-subst">{np.mean(loss_list)}</span>&#x27;</span>)
+        y_pred_list = np.concatenate(y_pred_list)
+        y_true_list = np.concatenate(y_true_list)
+        x_list = np.concatenate(x_list)
+
+        plt.figure()
+        plt.scatter(x_list, y_true_list, label=<span class="hljs-string">&#x27;True&#x27;</span>)
+        plt.scatter(x_list, y_pred_list, label=<span class="hljs-string">&#x27;Pred&#x27;</span>)
+        plt.legend()
+        plt.savefig(self.results_path / <span class="hljs-string">&#x27;eval.png&#x27;</span>)
+</code></pre>
+<h3 id="5utils工具包介绍">5.Utils工具包介绍</h3>
+<p>我在<code>utils.py</code>中预先写好了一些工具函数,在这里列出它们的作用:</p>
+<ol>
+<li><code>class TrainConfig</code>: 用于加载训练参数配置</li>
+<li><code>func()</code>: 要拟合的函数</li>
+<li><code>class FunctionDataset(Dataset)</code>: 加载数据集</li>
+<li><code>print_model_summary()</code>: 打印网络结构并估计需要的显存</li>
+<li><code>make_dataloader()</code>: 从数据集中创建数据加载器</li>
+<li><code>get_date_str()</code>: 用于记录评估时间</li>
+<li><code>handle_results_path()</code>: 处理结果路径,如果不存在则创建</li>
+<li><code>zero_init()</code>: 零初始化</li>
+<li><code>init_config_from_args()</code>: 从命令行初始化配置文件</li>
+<li><code>init_logger()</code>: 初始化记录器</li>
+<li><code>log()</code>: 记录器</li>
+</ol>
+<h2 id="实验步骤">实验步骤</h2>
+<h3 id="1环境配置">1.环境配置</h3>
+<p>安装依赖</p>
+<pre><code class="language-bash">conda create -n pytorch python=3.9
+pip install -r requirements.txt
+</code></pre>
+<h3 id="2训练模型">2.训练模型</h3>
+<p>配置文件:</p>
+<pre><code class="language-yaml"><span class="hljs-attr">compute_environment:</span> <span class="hljs-string">LOCAL_MACHINE</span>
+<span class="hljs-attr">distributed_type:</span> <span class="hljs-literal">NO</span>
+<span class="hljs-attr">fp16:</span> <span class="hljs-literal">False</span>
+<span class="hljs-attr">mixed_precision:</span> <span class="hljs-literal">no</span>
+<span class="hljs-attr">num_processes:</span> <span class="hljs-number">1</span>
+<span class="hljs-attr">gpu_ids:</span> <span class="hljs-string">all</span>
+<span class="hljs-attr">use_cpu:</span> <span class="hljs-literal">false</span>
+</code></pre>
+<p>运行以默认参数配置开始训练:</p>
+<pre><code class="language-bash">accelerate launch --config_file accelerate_config.yaml train.py
+</code></pre>
+<p>或在Linux服务器上:</p>
+<pre><code class="language-bash">bash train.sh
+</code></pre>
+<h3 id="3评估模型">3.评估模型</h3>
+<p>运行评估脚本</p>
+<pre><code class="language-bash">python eval.py
+</code></pre>
+<h2 id="实验结果">实验结果</h2>
+<p>在<code>train.py</code>中,我们能控制的超参数如下:</p>
+<pre><code class="language-python">    <span class="hljs-comment"># Data</span>
+    parser.add_argument(<span class="hljs-string">&quot;--N&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">200</span>)
+
+    <span class="hljs-comment"># Architecture</span>
+    parser.add_argument(<span class="hljs-string">&quot;--input-size&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">1</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--hidden-size&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">256</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--n-muti-layers&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">2</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--act-fn&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">str</span>, default=<span class="hljs-string">&quot;relu&quot;</span>)
+
+    <span class="hljs-comment"># Training</span>
+    parser.add_argument(<span class="hljs-string">&quot;--batch-size&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">64</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--lr&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">float</span>, default=<span class="hljs-number">2e-4</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--seed&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">123</span>)
+
+    parser.add_argument(<span class="hljs-string">&quot;--results-path&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">str</span>, default=<span class="hljs-literal">None</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--epochs&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">1_000</span>)
+</code></pre>
+<p>除去<code>input-size</code>和<code>results-path</code>这两个参数,下面我将逐一分析各个超参数的影响,最终给出每个任务合适的超参数配置:</p>
+<ol>
+<li><code>N</code>: 数据集大小,</li>
+<li><code>hidden-size</code>: 第一层隐藏层的features数量,决定模型的宽度,宽度不够时容易拟合出一条直线,当复杂度太大时会出现过拟合</li>
+<li><code>n-muti-layers</code>: 隐藏层features增长层的数量,决定模型的深度,深度不够时容易拟合出一条直线,当复杂度太大时会出现过拟合</li>
+<li><code>act-fn</code>: 激活函数类型,当层数较深时使用Sigmoid这种函数会出现梯度爆炸/消失等情况,目前来看ReLU更好</li>
+<li><code>batch-size</code>: 批量大小,当N=200时我们把整个数据集作为一个batch,这样使得训练比较稳定,当数据集较大时我们选择batch-size=64,节省显存</li>
+<li><code>lr</code>: 由于我们选用了较大的batch,我们同时使用较大的学习率2e-4,这样模型收敛较快,并且采用Adam算法自适应调整学习率大小</li>
+<li><code>seed</code>: 用于划分数据集和复现结果,影响不是很大</li>
+<li><code>epoch</code>: 数据集较小时需要更多的epoch,数据集较大时可以用更少的epoch达到比较不错的效果
+下面给出我实验后给每个N值合适的超参数配置:</li>
+</ol>
+<h4 id="n200">N=200</h4>
+<pre><code class="language-yaml"><span class="hljs-attr">N:</span> <span class="hljs-number">200</span>
+<span class="hljs-attr">act_fn:</span> <span class="hljs-string">relu</span>
+<span class="hljs-attr">batch_size:</span> <span class="hljs-number">200</span>
+<span class="hljs-attr">epochs:</span> <span class="hljs-number">5000</span>
+<span class="hljs-attr">hidden_size:</span> <span class="hljs-number">128</span>
+<span class="hljs-attr">input_size:</span> <span class="hljs-number">1</span>
+<span class="hljs-attr">lr:</span> <span class="hljs-number">0.0002</span>
+<span class="hljs-attr">n_muti_layers:</span> <span class="hljs-number">2</span>
+<span class="hljs-attr">results_path:</span> <span class="hljs-string">results/test6/</span>
+<span class="hljs-attr">seed:</span> <span class="hljs-number">123</span>
+</code></pre>
+<p><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>M</mi><mi>S</mi><mi>E</mi><mo>=</mo><mn>0.00047427104436792433</mn></mrow><annotation encoding="application/x-tex">MSE=0.00047427104436792433</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.05764em;">MSE</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">0.00047427104436792433</span></span></span></span>
+效果图:
+<img src="file:///d:\LMZ\小数据专业课\Deep Learning\Introduction-to-Deep-Learning\lab1\eval200.png" alt=""></p>
+<h4 id="n2000">N=2000</h4>
+<pre><code class="language-yaml"><span class="hljs-attr">N:</span> <span class="hljs-number">2000</span>
+<span class="hljs-attr">act_fn:</span> <span class="hljs-string">relu</span>
+<span class="hljs-attr">batch_size:</span> <span class="hljs-number">128</span>
+<span class="hljs-attr">epochs:</span> <span class="hljs-number">5000</span>
+<span class="hljs-attr">hidden_size:</span> <span class="hljs-number">128</span>
+<span class="hljs-attr">input_size:</span> <span class="hljs-number">1</span>
+<span class="hljs-attr">lr:</span> <span class="hljs-number">0.0002</span>
+<span class="hljs-attr">n_muti_layers:</span> <span class="hljs-number">3</span>
+<span class="hljs-attr">results_path:</span> <span class="hljs-string">results/test5/</span>
+<span class="hljs-attr">seed:</span> <span class="hljs-number">123</span>
+</code></pre>
+<p><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>M</mi><mi>S</mi><mi>E</mi><mo>=</mo><mn>0.000972279260167852</mn></mrow><annotation encoding="application/x-tex">MSE=0.000972279260167852</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.05764em;">MSE</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">0.000972279260167852</span></span></span></span>
+效果图:
+<img src="file:///d:\LMZ\小数据专业课\Deep Learning\Introduction-to-Deep-Learning\lab1\eval2000.png" alt=""></p>
+<h4 id="n10000">N=10000</h4>
+<pre><code class="language-yaml"><span class="hljs-attr">N:</span> <span class="hljs-number">10000</span>
+<span class="hljs-attr">act_fn:</span> <span class="hljs-string">relu</span>
+<span class="hljs-attr">batch_size:</span> <span class="hljs-number">64</span>
+<span class="hljs-attr">epochs:</span> <span class="hljs-number">1000</span>
+<span class="hljs-attr">hidden_size:</span> <span class="hljs-number">256</span>
+<span class="hljs-attr">input_size:</span> <span class="hljs-number">1</span>
+<span class="hljs-attr">lr:</span> <span class="hljs-number">2.0e-06</span>
+<span class="hljs-attr">n_muti_layers:</span> <span class="hljs-number">2</span>
+<span class="hljs-attr">results_path:</span> <span class="hljs-string">results/test4/</span>
+<span class="hljs-attr">seed:</span> <span class="hljs-number">123</span>
+</code></pre>
+<p><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>M</mi><mi>S</mi><mi>E</mi><mo>=</mo><mn>7.723650116986391</mn><mi>e</mi><mo>−</mo><mn>05</mn></mrow><annotation encoding="application/x-tex">MSE=7.723650116986391e-05</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6833em;"></span><span class="mord mathnormal" style="margin-right:0.05764em;">MSE</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.7278em;vertical-align:-0.0833em;"></span><span class="mord">7.723650116986391</span><span class="mord mathnormal">e</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">05</span></span></span></span>
+效果图:
+<img src="file:///d:\LMZ\小数据专业课\Deep Learning\Introduction-to-Deep-Learning\lab1\eval10000.png" alt=""></p>
+
+            <script async src="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.js"></script>
+            
+        </body>
+        </html>
