@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=2 nohup python eval.py --results-path results/test3 >eval3.log 2>&1 &
