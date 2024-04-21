@@ -1,0 +1,8 @@
+torch
+torchinfo
+torchvision
+accelerate
+warnings
+matplotlib
+pathlib
+tqdm

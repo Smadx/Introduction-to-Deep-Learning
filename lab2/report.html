@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>lab2</title>
+            <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only],
+.vscode-high-contrast:not(.vscode-high-contrast-light) img[src$=\#gh-light-mode-only],
+.vscode-high-contrast-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+</style>
+            
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+<style>
+:root {
+  --color-note: #0969da;
+  --color-tip: #1a7f37;
+  --color-warning: #9a6700;
+  --color-severe: #bc4c00;
+  --color-caution: #d1242f;
+  --color-important: #8250df;
+}
+
+</style>
+<style>
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-note: #2f81f7;
+    --color-tip: #3fb950;
+    --color-warning: #d29922;
+    --color-severe: #db6d28;
+    --color-caution: #f85149;
+    --color-important: #a371f7;
+  }
+}
+
+</style>
+<style>
+.markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 16px;
+  color: inherit;
+  border-left: .25em solid #888;
+}
+
+.markdown-alert>:first-child {
+  margin-top: 0
+}
+
+.markdown-alert>:last-child {
+  margin-bottom: 0
+}
+
+.markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1
+}
+
+.markdown-alert .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  display: inline-block;
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-caution);
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-caution);
+}
+
+</style>
+        
+        </head>
+        <body class="vscode-body vscode-light">
+            <h1 id="lab2">lab2</h1>
+<h2 id="实验目的">实验目的</h2>
+<p>使用卷积神经网络在CIFAR-10数据集上进行图像分类</p>
+<h2 id="实验内容">实验内容</h2>
+<h3 id="1代码框架">1.代码框架</h3>
+<ol>
+<li><code>utils.py</code>: 工具函数包</li>
+<li><code>model.py</code>: 模型定义</li>
+<li><code>train.py</code>: 训练脚本,并在验证集上评估模型性能</li>
+<li><code>eval.py</code>: 在测试集上评估模型性能</li>
+<li><code>accelerate_config.ymal</code>: 配置文件</li>
+</ol>
+<h3 id="2网络结构">2.网络结构</h3>
+<p>总体结构为:</p>
+<p>Conv_in -&gt; n*ResnetBlock -&gt; FC -&gt; Dropout -&gt; FC -&gt; Output</p>
+<p>在前两个<code>ResnetBlock</code>后使用了<code>MaxPooling</code>层,其中<code>ResnetBlock</code>定义如下:</p>
+<pre><code class="language-python"><span class="hljs-keyword">class</span> <span class="hljs-title class_">ResnetBlock</span>(nn.Module):
+    <span class="hljs-string">&quot;&quot;&quot;
+    Residual block with group normalization, SiLU activation, and dropout.
+
+    Args:
+        - in_channels: number of input channels
+        - out_channels: number of output channels
+        - norm_groups: number of groups for group normalization
+        - dropout_prob: dropout probability
+
+    Inputs:
+        - x: input tensor of shape (B, C, H, W)
+
+    Outputs:
+        - output tensor of shape (B, out_channels, H, W)
+    &quot;&quot;&quot;</span>
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">__init__</span>(<span class="hljs-params">self,
+            in_channels: <span class="hljs-built_in">int</span>,
+            out_channels: <span class="hljs-built_in">int</span>,
+            norm_groups: <span class="hljs-built_in">int</span>,
+            dropout_prob: <span class="hljs-built_in">float</span>,
+        </span>):
+        <span class="hljs-built_in">super</span>(ResnetBlock, self).__init__()
+        self.net1 = nn.Sequential(
+            nn.GroupNorm(norm_groups, in_channels),
+            nn.SiLU(),
+            nn.Dropout(dropout_prob),
+            nn.Conv2d(in_channels, out_channels, kernel_size=<span class="hljs-number">3</span>, stride=<span class="hljs-number">1</span>, padding=<span class="hljs-number">1</span>)
+        )
+        self.net2 = nn.Sequential(
+            nn.GroupNorm(norm_groups, out_channels),
+            nn.SiLU(),
+            nn.Dropout(dropout_prob),
+            nn.Conv2d(out_channels, out_channels, kernel_size=<span class="hljs-number">3</span>, stride=<span class="hljs-number">1</span>, padding=<span class="hljs-number">1</span>)
+        )
+        <span class="hljs-keyword">if</span> in_channels != out_channels:
+            self.skip_conv = nn.Conv2d(in_channels, out_channels, kernel_size=<span class="hljs-number">1</span>, stride=<span class="hljs-number">1</span>)
+
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">forward</span>(<span class="hljs-params">self, x</span>):
+        out = self.net1(x)
+        out = self.net2(out)
+        <span class="hljs-keyword">if</span> <span class="hljs-built_in">hasattr</span>(self, <span class="hljs-string">&#x27;skip_conv&#x27;</span>):
+            x = self.skip_conv(x)
+        <span class="hljs-keyword">return</span> x + out
+</code></pre>
+<p>我最终选择的网络结构为:</p>
+<pre><code class="language-log">===================================================================================================================
+Layer (type:depth-idx)                   Input Shape               Output Shape              Param #
+===================================================================================================================
+CNN                                      [1, 3, 32, 32]            [1, 10]                   --
+├─Conv2d: 1-1                            [1, 3, 32, 32]            [1, 128, 32, 32]          3,584
+├─ModuleList: 1-2                        --                        --                        --
+│    └─ResnetBlock: 2-1                  [1, 128, 32, 32]          [1, 256, 32, 32]          --
+│    │    └─Sequential: 3-1              [1, 128, 32, 32]          [1, 256, 32, 32]          --
+│    │    │    └─GroupNorm: 4-1          [1, 128, 32, 32]          [1, 128, 32, 32]          256
+│    │    │    └─SiLU: 4-2               [1, 128, 32, 32]          [1, 128, 32, 32]          --
+│    │    │    └─Dropout: 4-3            [1, 128, 32, 32]          [1, 128, 32, 32]          --
+│    │    │    └─Conv2d: 4-4             [1, 128, 32, 32]          [1, 256, 32, 32]          295,168
+│    │    └─Sequential: 3-2              [1, 256, 32, 32]          [1, 256, 32, 32]          --
+│    │    │    └─GroupNorm: 4-5          [1, 256, 32, 32]          [1, 256, 32, 32]          512
+│    │    │    └─SiLU: 4-6               [1, 256, 32, 32]          [1, 256, 32, 32]          --
+│    │    │    └─Dropout: 4-7            [1, 256, 32, 32]          [1, 256, 32, 32]          --
+│    │    │    └─Conv2d: 4-8             [1, 256, 32, 32]          [1, 256, 32, 32]          590,080
+│    │    └─Conv2d: 3-3                  [1, 128, 32, 32]          [1, 256, 32, 32]          33,024
+│    └─MaxPool2d: 2-2                    [1, 256, 32, 32]          [1, 256, 16, 16]          --
+│    └─ResnetBlock: 2-3                  [1, 256, 16, 16]          [1, 512, 16, 16]          --
+│    │    └─Sequential: 3-4              [1, 256, 16, 16]          [1, 512, 16, 16]          --
+│    │    │    └─GroupNorm: 4-9          [1, 256, 16, 16]          [1, 256, 16, 16]          512
+│    │    │    └─SiLU: 4-10              [1, 256, 16, 16]          [1, 256, 16, 16]          --
+│    │    │    └─Dropout: 4-11           [1, 256, 16, 16]          [1, 256, 16, 16]          --
+│    │    │    └─Conv2d: 4-12            [1, 256, 16, 16]          [1, 512, 16, 16]          1,180,160
+│    │    └─Sequential: 3-5              [1, 512, 16, 16]          [1, 512, 16, 16]          --
+│    │    │    └─GroupNorm: 4-13         [1, 512, 16, 16]          [1, 512, 16, 16]          1,024
+│    │    │    └─SiLU: 4-14              [1, 512, 16, 16]          [1, 512, 16, 16]          --
+│    │    │    └─Dropout: 4-15           [1, 512, 16, 16]          [1, 512, 16, 16]          --
+│    │    │    └─Conv2d: 4-16            [1, 512, 16, 16]          [1, 512, 16, 16]          2,359,808
+│    │    └─Conv2d: 3-6                  [1, 256, 16, 16]          [1, 512, 16, 16]          131,584
+│    └─MaxPool2d: 2-4                    [1, 512, 16, 16]          [1, 512, 8, 8]            --
+│    └─ResnetBlock: 2-5                  [1, 512, 8, 8]            [1, 1024, 8, 8]           --
+│    │    └─Sequential: 3-7              [1, 512, 8, 8]            [1, 1024, 8, 8]           --
+│    │    │    └─GroupNorm: 4-17         [1, 512, 8, 8]            [1, 512, 8, 8]            1,024
+│    │    │    └─SiLU: 4-18              [1, 512, 8, 8]            [1, 512, 8, 8]            --
+│    │    │    └─Dropout: 4-19           [1, 512, 8, 8]            [1, 512, 8, 8]            --
+│    │    │    └─Conv2d: 4-20            [1, 512, 8, 8]            [1, 1024, 8, 8]           4,719,616
+│    │    └─Sequential: 3-8              [1, 1024, 8, 8]           [1, 1024, 8, 8]           --
+│    │    │    └─GroupNorm: 4-21         [1, 1024, 8, 8]           [1, 1024, 8, 8]           2,048
+│    │    │    └─SiLU: 4-22              [1, 1024, 8, 8]           [1, 1024, 8, 8]           --
+│    │    │    └─Dropout: 4-23           [1, 1024, 8, 8]           [1, 1024, 8, 8]           --
+│    │    │    └─Conv2d: 4-24            [1, 1024, 8, 8]           [1, 1024, 8, 8]           9,438,208
+│    │    └─Conv2d: 3-9                  [1, 512, 8, 8]            [1, 1024, 8, 8]           525,312
+├─Flatten: 1-3                           [1, 1024, 8, 8]           [1, 65536]                --
+├─Linear: 1-4                            [1, 65536]                [1, 512]                  33,554,944
+├─SiLU: 1-5                              [1, 512]                  [1, 512]                  --
+├─Dropout: 1-6                           [1, 512]                  [1, 512]                  --
+├─Linear: 1-7                            [1, 512]                  [1, 10]                   5,130
+===================================================================================================================
+</code></pre>
+<h3 id="3训练策略">3.训练策略</h3>
+<ol>
+<li>首先读取配置文件,并设置随机种子,根据配置文件初始化模型</li>
+<li>使用<code>print_model_summary</code>函数打印模型结构</li>
+<li>读取数据集,按4:1的比例划分训练集和验证集</li>
+<li>把所需参数和配置文件导入<code>Trainer</code>类,损失函数为<code>CrossEntropyLoss</code>,优化器为<code>Adam</code></li>
+<li>训练完成后加载<code>Evaluator</code>类,评估模型在验证集上的性能</li>
+<li>选择一组合适的超参数</li>
+</ol>
+<h3 id="4评估策略">4.评估策略</h3>
+<ol>
+<li>读取配置文件,并设置随机种子,根据配置文件初始化模型</li>
+<li>读取数据集,使用CIFAR-10自己划分的训练集和测试集</li>
+<li>把所需参数和配置文件导入<code>Trainer</code>类,这次把训练集和验证集都用于训练</li>
+<li>训练完成后再测试集上评估模型的性能,并画出拟合的曲线与真实曲线的比较</li>
+</ol>
+<h3 id="5utils工具包介绍">5.Utils工具包介绍</h3>
+<p>我在<code>utils.py</code>中预先写好了一些工具函数,在这里列出它们的作用:</p>
+<ol>
+<li><code>class TrainConfig</code>: 用于加载训练参数配置</li>
+<li><code>print_model_summary()</code>: 打印网络结构并估计需要的显存</li>
+<li><code>make_dataloader()</code>: 从数据集中创建数据加载器</li>
+<li><code>cycle()</code>: 用于循环迭代器</li>
+<li><code>maybe_unpack_batch()</code>: 用于解包批次数据</li>
+<li><code>make_cifar()</code>: 用于创建CIFAR-10数据集</li>
+<li><code>get_date_str()</code>: 用于记录评估时间</li>
+<li><code>handle_results_path()</code>: 处理结果路径,如果不存在则创建</li>
+<li><code>zero_init()</code>: 零初始化</li>
+<li><code>init_config_from_args()</code>: 从命令行初始化配置文件</li>
+<li><code>init_logger()</code>: 初始化记录器</li>
+<li><code>log()</code>: 记录器</li>
+</ol>
+<h2 id="实验步骤">实验步骤</h2>
+<h3 id="1环境配置">1.环境配置</h3>
+<p>安装依赖</p>
+<pre><code class="language-bash">conda create -n pytorch python=3.9
+pip install -r requirements.txt
+</code></pre>
+<h3 id="2训练模型">2.训练模型</h3>
+<p>配置文件:</p>
+<pre><code class="language-yaml"><span class="hljs-attr">compute_environment:</span> <span class="hljs-string">LOCAL_MACHINE</span>
+<span class="hljs-attr">distributed_type:</span> <span class="hljs-literal">NO</span>
+<span class="hljs-attr">fp16:</span> <span class="hljs-literal">False</span>
+<span class="hljs-attr">mixed_precision:</span> <span class="hljs-literal">no</span>
+<span class="hljs-attr">num_processes:</span> <span class="hljs-number">1</span>
+<span class="hljs-attr">gpu_ids:</span> <span class="hljs-string">all</span>
+<span class="hljs-attr">use_cpu:</span> <span class="hljs-literal">false</span>
+</code></pre>
+<p>运行以默认参数配置开始训练:</p>
+<pre><code class="language-bash">accelerate launch --config_file accelerate_config.yaml train.py
+</code></pre>
+<p>或在Linux服务器上:</p>
+<pre><code class="language-bash">bash train.sh
+</code></pre>
+<h3 id="3评估模型">3.评估模型</h3>
+<p>运行评估脚本</p>
+<pre><code class="language-bash">python eval.py
+</code></pre>
+<h2 id="实验结果">实验结果</h2>
+<p>在<code>train.py</code>中,我们能控制的超参数如下:</p>
+<pre><code class="language-python">    <span class="hljs-comment"># Architecture</span>
+    parser.add_argument(<span class="hljs-string">&quot;--in-channels&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">128</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--norm-groups&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">32</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--dropout-prob&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">float</span>, default=<span class="hljs-number">0.5</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--n-resnet-blocks&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">3</span>)
+
+    <span class="hljs-comment"># Training</span>
+    parser.add_argument(<span class="hljs-string">&quot;--batch-size&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">128</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--lr&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">float</span>, default=<span class="hljs-number">2e-4</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--seed&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">123</span>)
+
+    parser.add_argument(<span class="hljs-string">&quot;--results-path&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">str</span>, default=<span class="hljs-literal">None</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--epochs&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">10</span>)
+</code></pre>
+<p>除去<code>seed</code>和<code>results-path</code>外,我们对其他参数进行了调整,分析如下:</p>
+<ol>
+<li><code>in-channels</code>: 输入通道数,默认为128,因为CIFAR-10的图像是彩色图像,我们希望选择一个较大的通道数,以便提取更多的特征,当<code>in-channels</code>为较小时,模型性能有显著下降</li>
+<li><code>norm-groups</code>: 组归一化的组数,默认为32,组归一化是一种归一化方法,它将通道分为若干组,每组进行归一化,这样可以减少模型的过拟合,提高模型的泛化能力,刚开始我选择的是8,但模型性能不佳,考虑到彩色图像的通道数较多,我选择了32,取得了不错的效果</li>
+<li><code>dropout-prob</code>: dropout概率,默认为0.5,dropout是一种正则化方法,可以减少模型的过拟合,提高模型的泛化能力,我选择了0.5,因为这是一个较为常用的值,在实验中取得了不错的效果</li>
+<li><code>n-resnet-blocks</code>: ResnetBlock的数量,默认为3,当不使用ResnetBlock,只使用两个卷积层时,模型在验证集上只有72%的准确率,使用两层ResnetBlock时,模型在验证集上的准确率达到了81%,三层时达到了83%,再多时准确率没有显著提高,但是参数量过大,因此我选择了3层</li>
+<li><code>batch-size</code>: 批次大小,默认为128,考虑到我的设备显存较大,我使用了256,这样可以加快训练速度</li>
+<li><code>lr</code>: 学习率,默认为2e-4,我选择了这个学习率,因为根据我之前处理CIFAR-10数据集的经验,这个学习率搭配128~256的批次大小效果较好</li>
+<li><code>epochs</code>: 训练轮数,默认为10,我选择了30,超过30时模型在验证集上的loss开始上升,说明模型开始过拟合</li>
+</ol>
+<p>下面给出几次实验的结果:</p>
+<ol>
+<li>只使用两层卷积,无<code>ResnetBlock</code>,准确率为72%
+<img src="file:///d:\LMZ\小数据专业课\Deep Learning\Introduction-to-Deep-Learning\lab2\c2.png" alt=""></li>
+<li>使用两层<code>ResnetBlock</code>,准确率为81%
+<img src="file:///d:\LMZ\小数据专业课\Deep Learning\Introduction-to-Deep-Learning\lab2\r2.png" alt=""></li>
+<li>使用三层<code>ResnetBlock</code>,准确率为83%
+<img src="file:///d:\LMZ\小数据专业课\Deep Learning\Introduction-to-Deep-Learning\lab2\r3.png" alt=""></li>
+</ol>
+<p>最终结果,在测试集上选择参数:</p>
+<pre><code class="language-yaml"><span class="hljs-attr">batch_size:</span> <span class="hljs-number">256</span>
+<span class="hljs-attr">dropout_prob:</span> <span class="hljs-number">0.5</span>
+<span class="hljs-attr">epochs:</span> <span class="hljs-number">30</span>
+<span class="hljs-attr">in_channels:</span> <span class="hljs-number">128</span>
+<span class="hljs-attr">lr:</span> <span class="hljs-number">0.0002</span>
+<span class="hljs-attr">n_resnet_blocks:</span> <span class="hljs-number">3</span>
+<span class="hljs-attr">norm_groups:</span> <span class="hljs-number">32</span>
+<span class="hljs-attr">results_path:</span> <span class="hljs-string">results/test3/</span>
+<span class="hljs-attr">seed:</span> <span class="hljs-number">123</span>
+</code></pre>
+<p><img src="file:///d:\LMZ\小数据专业课\Deep Learning\Introduction-to-Deep-Learning\lab2\zz.png" alt="alt text"></p>
+
+            
+            
+        </body>
+        </html>
