@@ -18,43 +18,49 @@ from sklearn.metrics import roc_auc_score
 class TrainConfig:
     dataset: str
     hidden_size: int
+    hidden_sizec: int
+    hidden_sizel: int
     num_layers: int
     pair_norm_scale: float
     dropedge_prob: float
     lr: float
     seed: int
     results_path: str
-    epochs: int
+    epochc: int
+    epochl: int
+    loop: bool
 
 
-def print_model_summary(model, *, node_shape, edge_shape, depth=3, dataset_name="Cora"):
+def print_model_summary(model, *, node_shape, edge, depth=3, dataset_name="Cora", device="cuda"):
     """
+    Print a summary of the model, including the size of the forward/backward pass and the estimated total size.
+
     Args:
         - model: the model to summarize
-        - batch_size: the batch size to use for the summary
-        - shape: the shape of the input tensor
+        - node_shape: the shape of the node features
+        - edge: the edge index
         - depth: the depth of the summary
-        - batch_size_torchinfo: the batch size to use for torchinfo
+        - dataset_name: the name of the dataset
     """
     summary = torchinfo.summary(
         model,
-        input_size=[(node_shape), (edge_shape)],
+        input_data=(torch.randn(node_shape), edge),
         depth=depth,
         col_names=["input_size", "output_size", "num_params"],
         verbose=0,  # no text output
+        device=device,
     )
     log(summary)
-    output_bytes_large = summary.total_output_bytes 
-    total_bytes = summary.total_input + output_bytes_large + summary.total_param_bytes
-    log(
-        f"\n--- With dataset {dataset_name} ---\n"
-        f"Forward/backward pass size: {output_bytes_large / 1e9:0.2f} GB\n"
-        f"Estimated Total Size: {total_bytes / 1e9:0.2f} GB\n"
-        + "=" * len(str(summary).splitlines()[-1])
-        + "\n"
-    )
 
 def drop_edge(edge_index, edge_attr=None, drop_prob=0.1):
+    """
+    Drops edges from the edge index and edge attribute tensor.
+
+    Args:
+        - edge_index: the edge index tensor
+        - edge_attr: the edge attribute tensor
+        - drop_prob: the probability of dropping an edge
+    """
     if drop_prob < 0.01:
         return edge_index, edge_attr
 
@@ -75,35 +81,30 @@ def cycle(dl):
 
 def split_val(data, val_ratio: float = 0.2):
     """
-    Splits the dataset into training and validation sets.
+    Splits the training set into new training and validation sets, ensuring no overlap with the test set.
 
     Args:
-        - data: the dataset
-        - val_ratio: the ratio of validation nodes
+        data: the dataset, with pre-defined 'train_mask' and 'test_mask'.
+        val_ratio: the fraction of the original training set to be used as the validation set.
 
     Returns:
-        - the dataset with the train_mask and val_mask attributes set
+        Modified dataset with updated 'train_mask' and new 'val_mask'.
     """
-    num_nodes = data.y.size(0)
-    val_size = int(num_nodes * val_ratio)  
-    indices = torch.randperm(num_nodes)
+    train_indices = data.train_mask.nonzero(as_tuple=False).squeeze()
+    shuffled_train_indices = train_indices[torch.randperm(train_indices.size(0))]
 
-    train_mask = data.train_mask.clone()
-    val_mask = torch.zeros(num_nodes, dtype=torch.bool)
+    val_size = int(len(shuffled_train_indices) * val_ratio)
 
-    # ensure that the validation set is not empty and disjoint from the test set
-    train_indices = indices[~data.test_mask][val_size:]
-    val_indices = indices[~data.test_mask][:val_size]
+    # Create new validation and training masks
+    val_mask = torch.zeros(data.num_nodes, dtype=torch.bool)
+    train_mask = data.train_mask.clone()  
 
-    train_mask.fill_(False)
-    train_mask[train_indices] = True
-    val_mask[val_indices] = True
+    val_mask[shuffled_train_indices[:val_size]] = True
+    train_mask[shuffled_train_indices[:val_size]] = False
 
-    # check that the masks are disjoint
-    assert not val_mask[data.test_mask].any()
-
-    data.train_mask = train_mask
     data.val_mask = val_mask
+    data.train_mask = train_mask
+
     return data
 
 def make_cora(cora_path: str):
@@ -112,57 +113,80 @@ def make_cora(cora_path: str):
 def make_citeseer(citeseer_path: str):
     return Planetoid(root=citeseer_path, name="CiteSeer")[0]
 
-def create_edge_split(data, val_ratio=0.2, seed=123):
+def create_edge_split(data, val_ratio=0.2):
     """
-    Splits the edges of the graph into training and validation sets.
+    Splits the edges of the graph into training and validation sets, ensuring that only edges from the training set are considered.
 
     Args:
         - data: the dataset
         - val_ratio: the ratio of validation edges
     """
-    edges = data.edge_index.t().numpy()
-    total_edges = edges.shape[0]
+    node_mask = data.train_mask
+    edge_mask = node_mask[data.edge_index[0]] & node_mask[data.edge_index[1]]
 
-    np.random.seed(seed)
-    np.random.shuffle(edges)
-
-    val_edge_num = int(total_edges * val_ratio)
-    val_edges = edges[:val_edge_num]
-    train_edges = edges[val_edge_num:]
+    # 应用边的训练掩码
+    train_edges = data.edge_index[:, edge_mask].t().numpy()
+    
+    np.random.shuffle(train_edges)
+    
+    val_edge_num = int(len(train_edges) * val_ratio)
+    val_edges = train_edges[:val_edge_num]
+    train_edges = train_edges[val_edge_num:]
 
     # 创建负样本
+    total_edges = data.edge_index.size(1)
     adj_matrix = sp.coo_matrix((np.ones(total_edges), (data.edge_index[0], data.edge_index[1])), shape=(data.num_nodes, data.num_nodes))
     adj_matrix = adj_matrix.tolil()
-    adj_matrix[train_edges[:, 0], train_edges[:, 1]] = 0
-    adj_matrix[train_edges[:, 1], train_edges[:, 0]] = 0
+    adj_matrix[val_edges[:, 0], val_edges[:, 1]] = 0
+    adj_matrix[val_edges[:, 1], val_edges[:, 0]] = 0
     negative_edges = np.row_stack(np.where(adj_matrix.toarray() == 0))
     np.random.shuffle(negative_edges)
-    negative_edges = negative_edges[:val_edge_num].T
+    negative_edges = negative_edges[:len(train_edges)].T
 
     return train_edges, val_edges, negative_edges
+
+def test_edge_split(data):
+    """
+    Splits the edges of the graph into training and validation sets, ensuring that only edges from the training set are considered.
+
+    Args:
+        - data: the dataset
+    """
+    node_mask = data.train_mask
+    edge_mask = node_mask[data.edge_index[0]] & node_mask[data.edge_index[1]]
+
+    # 应用边的训练掩码
+    train_edges = data.edge_index[:, edge_mask].t().numpy()
     
-def compute_auc(model, data, val_edges, negative_edges):
+    node_test = data.test_mask
+    edge_mask_test = node_test[data.edge_index[0]] & node_test[data.edge_index[1]]
+    test_edges = data.edge_index[:, edge_mask_test].t().numpy()
+
+
+    # 创建负样本
+    total_edges = data.edge_index.size(1)
+    adj_matrix = sp.coo_matrix((np.ones(total_edges), (data.edge_index[0], data.edge_index[1])), shape=(data.num_nodes, data.num_nodes))
+    adj_matrix = adj_matrix.tolil()
+    adj_matrix[test_edges[:, 0], test_edges[:, 1]] = 0
+    adj_matrix[test_edges[:, 1], test_edges[:, 0]] = 0
+    negative_edges = np.row_stack(np.where(adj_matrix.toarray() == 0))
+    np.random.shuffle(negative_edges)
+    negative_edges = negative_edges[:len(train_edges)].T
+
+    return train_edges, test_edges, negative_edges
+    
+def compute_auc(pos_scores, neg_scores):
     """
     Compute the AUC of the model on the validation set.
 
     Args:
-        - model: the model
-        - data: the dataset
-        - val_edges: the validation edges
-        - negative_edges: the negative edges
+        - pos_scores: the scores of the positive edges
+        - neg_scores: the scores of the negative edges
     """
-    model.eval()
-    with torch.no_grad():
-        z = model(data.x, data.edge_index)  # 获取节点嵌入
-
-        pos_scores = torch.sigmoid((z[val_edges[:, 0]] * z[val_edges[:, 1]]).sum(dim=1)) # positive edges
-        neg_scores = torch.sigmoid((z[negative_edges[0]] * z[negative_edges[1]]).sum(dim=1)) # negative edges
-
-        # AUC
-        labels = torch.cat([torch.ones(pos_scores.size(0)), torch.zeros(neg_scores.size(0))])
-        scores = torch.cat([pos_scores, neg_scores])
-        auc_score = roc_auc_score(labels.cpu().numpy(), scores.cpu().numpy())
-        return auc_score
+    labels = torch.cat([torch.ones(pos_scores.size(0)), torch.zeros(neg_scores.size(0))])
+    scores = torch.cat([pos_scores, neg_scores])
+    auc_score = roc_auc_score(labels.cpu().numpy(), scores.cpu().numpy())
+    return auc_score
 
 def get_date_str():
     return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

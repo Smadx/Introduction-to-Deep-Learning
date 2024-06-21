@@ -37,9 +37,11 @@ def main():
     parser.add_argument("--dataset", type=str, default="cora")
 
     # Architecture
-    parser.add_argument("--hidden-size", type=int, default=32)
+    parser.add_argument("--hidden-sizec", type=int, default=512)
+    parser.add_argument("--hidden-sizel", type=int, default=512)
     parser.add_argument("--num-layers", type=int, default=3)
     parser.add_argument("--pair-norm-scale", type=float, default=None)
+    parser.add_argument("--loop", type=bool, default=False)
 
     # Training
     parser.add_argument("--dropedge-prob", type=float, default=None)
@@ -47,7 +49,8 @@ def main():
     parser.add_argument("--seed", type=int, default=123)
 
     parser.add_argument("--results-path", type=str, default=None)
-    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--epochc", type=int, default=100)
+    parser.add_argument("--epochl", type=int, default=100)
 
     args = parser.parse_args()
 
@@ -65,15 +68,16 @@ def main():
         else:
             raise ValueError(f"Unknown dataset {cfg.dataset}")
         data = split_val(data)
-    classifer = GCN(data.num_features, data.num_classes, cfg, classifier=True)
+    classifer = GCN(data.num_features, len(data.y.unique()), cfg.hidden_sizec, cfg, classifier=True)
+    input_size = (data.num_nodes, data.num_features)
     print_model_summary(classifer, 
-                        node_shape=(data.x.shape[0], data.x.shape[1]), 
-                        edge_shape=(data.edge_index.shape[0], data.edge_index.shape[1]),
+                        node_shape=input_size, 
+                        edge=data.edge_index,
                         depth=3, dataset_name=cfg.dataset)
-    link_predictor = GCN(data.num_features, data.num_classes, cfg, classifier=False)
-    print_model_summary(link_predictor,
-                        node_shape=(data.x.shape[0], data.x.shape[1]),
-                        edge_shape=(data.edge_index.shape[0], data.edge_index.shape[1]),
+    link_predictor = GCN(data.num_features, len(data.y.unique()), cfg.hidden_sizel, cfg, classifier=False)
+    print_model_summary(link_predictor, 
+                        node_shape=input_size, 
+                        edge=data.edge_index,
                         depth=3, dataset_name=cfg.dataset)
     log(f"Train on {accelerator.device}")
     Trainer(
@@ -133,15 +137,18 @@ class Trainer:
         self.critierion = torch.nn.NLLLoss()
         self.cfg = config
         self.step = 0
-        self.epoch = self.cfg.epochs
-        self.results_path = results_path
+        self.results_path = results_path / "classifier" if classifier else results_path / "link_predictor"
         self.classifier = classifier
         if self.classifier == False:
+            self.epoch = self.cfg.epochl
+            data = data.cpu()
             self.train_edges, self.val_edges, self.neg_val_edges = create_edge_split(data)
+        else:
+            self.epoch = self.cfg.epochc
         self.device = self.accelerator.device
         print('Train on', self.device)
         self.model.to(self.device)
-        self.checkpoint_path = self.results_path / f"classifier.pt" if self.classifier else self.results_path / f"link_predictor.pt"
+        self.checkpoint_path = self.results_path / f"model.pt"
 
         self.results_path.mkdir(parents=True, exist_ok=True)
         with open(self.results_path / "config.yaml", "w") as f:
@@ -156,6 +163,7 @@ class Trainer:
         ) as pbar:
             while self.step < self.epoch:
                 self.opt.zero_grad()
+                self.data = self.data.to(self.device)
                 edge_index = self.data.edge_index
                 if self.cfg.dropedge_prob is not None:
                     edge_index, _ = drop_edge(self.data.edge_index, drop_prob=self.cfg.dropedge_prob)
@@ -165,7 +173,7 @@ class Trainer:
                 else:
                     pos_out = torch.sigmoid((output[self.train_edges[:, 0]] * output[self.train_edges[:, 1]]).sum(dim=1))
                     neg_out = torch.sigmoid((output[self.neg_val_edges[:, 0]] * output[self.neg_val_edges[:, 1]]).sum(dim=1))
-                    loss = binary_cross_entropy(torch.cat([pos_out, neg_out]), torch.cat([torch.ones(pos_out.size(0)), torch.zeros(neg_out.size(0))]))
+                    loss = binary_cross_entropy(torch.cat([pos_out, neg_out]), torch.cat([torch.ones(pos_out.size(0)).to("cuda"), torch.zeros(neg_out.size(0)).to("cuda")]))
                 self.accelerator.backward(loss)
                 self.opt.step()
                 pbar.set_description(f'Loss: {loss.item():.4f}')
@@ -219,17 +227,20 @@ class Evaluator:
         self.cfg = config
         self.device = self.accelerator.device
         self.model.to(self.device)
-        self.results_path = results_path
+        self.results_path = results_path / "classifier" if classifier else results_path / "link_predictor"
         self.classifier = classifier
         if self.classifier == False:
+            data = data.cpu()
             self.train_edges, self.val_edges, self.neg_val_edges = create_edge_split(data)
-        self.checkpoint_path = results_path / f"classifier.pt" if self.classifier else results_path / f"link_predictor.pt"
+        self.checkpoint_path = self.results_path / f"model.pt"
 
     def evaluate(self):
         checkpoint = torch.load(self.checkpoint_path, map_location=self.device)
         self.model.load_state_dict(checkpoint["model"])
         self.model.eval()
         with torch.no_grad():
+            self.data = self.data.to(self.device)
+            self.data.edge_index = self.data.edge_index.to(self.device)
             if self.classifier:
                 preds = self.model(self.data.x, self.data.edge_index).argmax(dim=1)
                 val_correct = (preds[self.data.val_mask] == self.data.y[self.data.val_mask]).sum()

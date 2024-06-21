@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>lab3</title>
+            <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only],
+.vscode-high-contrast:not(.vscode-high-contrast-light) img[src$=\#gh-light-mode-only],
+.vscode-high-contrast-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+</style>
+            
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+<style>
+:root {
+  --color-note: #0969da;
+  --color-tip: #1a7f37;
+  --color-warning: #9a6700;
+  --color-severe: #bc4c00;
+  --color-caution: #d1242f;
+  --color-important: #8250df;
+}
+
+</style>
+<style>
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-note: #2f81f7;
+    --color-tip: #3fb950;
+    --color-warning: #d29922;
+    --color-severe: #db6d28;
+    --color-caution: #f85149;
+    --color-important: #a371f7;
+  }
+}
+
+</style>
+<style>
+.markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 16px;
+  color: inherit;
+  border-left: .25em solid #888;
+}
+
+.markdown-alert>:first-child {
+  margin-top: 0
+}
+
+.markdown-alert>:last-child {
+  margin-bottom: 0
+}
+
+.markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1
+}
+
+.markdown-alert .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  display: inline-block;
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-caution);
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-caution);
+}
+
+</style>
+        
+        </head>
+        <body class="vscode-body vscode-light">
+            <h1 id="lab3">lab3</h1>
+<h2 id="实验目的">实验目的</h2>
+<p>使用GCN对Cora数据集和Citeseer数据集进行节点分类和链路预测任务</p>
+<h2 id="实验内容">实验内容</h2>
+<h3 id="1代码框架">1.代码框架</h3>
+<ol>
+<li><code>utils.py</code>: 工具函数包</li>
+<li><code>model.py</code>: 模型定义</li>
+<li><code>train.py</code>: 训练脚本,并在验证集上评估模型性能</li>
+<li><code>eval.py</code>: 在测试集上评估模型性能</li>
+<li><code>accelerate_config.ymal</code>: 配置文件</li>
+</ol>
+<h3 id="2网络结构">2.网络结构</h3>
+<p>做节点分类任务时会多过一层<code>softmax</code>层,</p>
+<p><code>Cora</code>数据集:</p>
+<pre><code class="language-log">===================================================================================================================
+Layer (type:depth-idx)                   Input Shape               Output Shape              Param #
+===================================================================================================================
+GCN                                      [2708, 1433]              [2708, 7]                 --
+├─GCNConv: 1-1                           [2708, 1433]              [2708, 512]               733,696
+├─PairNorm: 1-2                          [2708, 512]               [2708, 512]               --
+├─ModuleList: 1-3                        --                        --                        --
+│    └─GCNConv: 2-1                      [2708, 512]               [2708, 256]               131,072
+├─GCNConv: 1-4                           [2708, 256]               [2708, 7]                 1,792
+===================================================================================================================
+Total params: 866,560
+Trainable params: 866,560
+Non-trainable params: 0
+Total mult-adds (G): 2.35
+===================================================================================================================
+Input size (MB): 15.69
+Forward/backward pass size (MB): 16.79
+Params size (MB): 3.47
+Estimated Total Size (MB): 35.95
+===================================================================================================================
+</code></pre>
+<p><code>Citeseer</code>数据集:</p>
+<pre><code class="language-log">===================================================================================================================
+Layer (type:depth-idx)                   Input Shape               Output Shape              Param #
+===================================================================================================================
+GCN                                      [3327, 3703]              [3327, 6]                 --
+├─GCNConv: 1-1                           [3327, 3703]              [3327, 3200]              11,849,600
+├─PairNorm: 1-2                          [3327, 3200]              [3327, 3200]              --
+├─ModuleList: 1-3                        --                        --                        --
+│    └─GCNConv: 2-1                      [3327, 3200]              [3327, 1600]              5,120,000
+├─GCNConv: 1-4                           [3327, 1600]              [3327, 6]                 9,600
+===================================================================================================================
+Total params: 16,979,200
+Trainable params: 16,979,200
+Non-trainable params: 0
+Total mult-adds (G): 56.49
+===================================================================================================================
+Input size (MB): 49.43
+Forward/backward pass size (MB): 127.92
+Params size (MB): 67.92
+Estimated Total Size (MB): 245.26
+===================================================================================================================
+</code></pre>
+<p>其中<code>GCNConv</code>层的结构为:</p>
+<pre><code class="language-python"><span class="hljs-keyword">class</span> <span class="hljs-title class_">GCNConv</span>(nn.Module):
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">__init__</span>(<span class="hljs-params">self, in_features, out_features, loop: <span class="hljs-built_in">bool</span></span>):
+        <span class="hljs-built_in">super</span>(GCNConv, self).__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.weight = nn.Parameter(torch.FloatTensor(in_features, out_features))
+        self.reset_parameters()
+        self.loop = loop
+
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">reset_parameters</span>(<span class="hljs-params">self</span>):
+        stdv = <span class="hljs-number">1.</span> / (self.weight.size(<span class="hljs-number">1</span>) ** <span class="hljs-number">0.5</span>)
+        self.weight.data.uniform_(-stdv, stdv)
+
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">forward</span>(<span class="hljs-params">self, x, edge_index</span>):
+
+        num_nodes = x.size(<span class="hljs-number">0</span>)
+
+        <span class="hljs-keyword">if</span> self.loop:
+            loop_index = torch.arange(<span class="hljs-number">0</span>, num_nodes, device=edge_index.device)
+            loop_index = loop_index.unsqueeze(<span class="hljs-number">0</span>).repeat(<span class="hljs-number">2</span>, <span class="hljs-number">1</span>)
+            edge_index = torch.cat([edge_index, loop_index], dim=<span class="hljs-number">1</span>)
+
+        values = torch.ones(edge_index.size(<span class="hljs-number">1</span>), device=<span class="hljs-string">&quot;cuda&quot;</span>)
+        adj = torch.sparse_coo_tensor(edge_index, values, (num_nodes, num_nodes), dtype=torch.<span class="hljs-built_in">float</span>)
+
+        support = torch.mm(x, self.weight)
+        output = torch.spmm(adj, support)
+
+        <span class="hljs-keyword">return</span> output
+</code></pre>
+<p><code>PairNorm</code>层的结构为:</p>
+<pre><code class="language-python"><span class="hljs-keyword">class</span> <span class="hljs-title class_">PairNorm</span>(torch.nn.Module):
+    <span class="hljs-string">&quot;&quot;&quot;
+    The pair normalization layer
+
+    Args:
+        - scale: the scale parameter
+    &quot;&quot;&quot;</span>
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">__init__</span>(<span class="hljs-params">self, scale=<span class="hljs-number">1</span></span>):
+        <span class="hljs-built_in">super</span>(PairNorm, self).__init__()
+        self.scale = scale
+
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">forward</span>(<span class="hljs-params">self, x</span>):
+        mean_x = x.mean(dim=<span class="hljs-number">0</span>, keepdim=<span class="hljs-literal">True</span>)
+        x = x - mean_x
+        std_x = x.<span class="hljs-built_in">pow</span>(<span class="hljs-number">2</span>).mean().sqrt()
+        x = self.scale * x / std_x
+        <span class="hljs-keyword">return</span> x
+</code></pre>
+<h3 id="3训练策略">3.训练策略</h3>
+<ol>
+<li>分数据集进行训练,对每个数据集分别进行节点分类和链路预测任务</li>
+<li>使用<code>print_model_summary</code>函数打印模型结构</li>
+<li>读取数据集,按4:1的比例划分训练集和验证集</li>
+<li>把所需参数和配置文件导入<code>Trainer</code>类,节点分类使用<code>NLLLoss</code>损失函数,链路预测使用<code>binary_cross_entropy</code>损失函数</li>
+<li>训练完成后加载<code>Evaluator</code>类,评估模型在验证集上的性能</li>
+<li>选择一组合适的超参数</li>
+</ol>
+<h3 id="4评估策略">4.评估策略</h3>
+<ol>
+<li>读取配置文件,并设置随机种子,根据配置文件初始化模型</li>
+<li>读取数据集,使用<code>Cora</code>和<code>Citeseer</code>数据集自己划分的训练集和测试集</li>
+<li>把所需参数和配置文件导入<code>Trainer</code>类,这次把训练集和验证集都用于训练</li>
+<li>训练完成后再测试集上评估模型的性能</li>
+</ol>
+<h3 id="5utils工具包介绍">5.Utils工具包介绍</h3>
+<p>我在<code>utils.py</code>中预先写好了一些工具函数,在这里列出它们的作用:</p>
+<ol>
+<li><code>class TrainConfig</code>: 用于加载训练参数配置</li>
+<li><code>print_model_summary()</code>: 打印网络结构并估计需要的显存</li>
+<li><code>drop_edge</code>: 随机删除边</li>
+<li><code>cycle</code>: 用于循环迭代数据集</li>
+<li><code>split_val</code>: 划分训练集和验证集</li>
+<li><code>make_cora</code>: 生成<code>Cora</code>数据集</li>
+<li><code>make_citeseer</code>: 生成<code>Citeseer</code>数据集</li>
+<li><code>create_edge_split</code>: 生成边的划分和负样本</li>
+<li><code>test_edge_split</code>: 测试集边的划分和负样本</li>
+<li><code>compute_auc</code>: 计算AUC</li>
+<li><code>get_date_str()</code>: 用于记录评估时间</li>
+<li><code>handle_results_path()</code>: 处理结果路径,如果不存在则创建</li>
+<li><code>zero_init()</code>: 零初始化</li>
+<li><code>init_config_from_args()</code>: 从命令行初始化配置文件</li>
+<li><code>init_logger()</code>: 初始化记录器</li>
+<li><code>log()</code>: 记录器</li>
+</ol>
+<h2 id="实验步骤">实验步骤</h2>
+<h3 id="1环境配置">1.环境配置</h3>
+<pre><code class="language-bash">conda create -n pytorch python=3.9
+pip install -r requirements.txt
+</code></pre>
+<h3 id="2训练">2.训练</h3>
+<p>下面<code>1</code>表示<code>Cora</code>数据集,<code>2</code>表示<code>Citeseer</code>数据集,我们以<code>Cora</code>数据集为例</p>
+<p>配置文件:</p>
+<pre><code class="language-yaml"><span class="hljs-attr">compute_environment:</span> <span class="hljs-string">LOCAL_MACHINE</span>
+<span class="hljs-attr">distributed_type:</span> <span class="hljs-literal">NO</span>
+<span class="hljs-attr">fp16:</span> <span class="hljs-literal">False</span>
+<span class="hljs-attr">mixed_precision:</span> <span class="hljs-literal">no</span>
+<span class="hljs-attr">num_processes:</span> <span class="hljs-number">1</span>
+<span class="hljs-attr">gpu_ids:</span> <span class="hljs-string">all</span>
+<span class="hljs-attr">use_cpu:</span> <span class="hljs-literal">false</span>
+</code></pre>
+<p>运行以默认参数配置开始训练:</p>
+<pre><code class="language-bash">accelerate launch --config_file accelerate_config.yaml train1.py
+</code></pre>
+<p>或在Linux服务器上:</p>
+<pre><code class="language-bash">bash train1.sh
+</code></pre>
+<h3 id="3评估模型">3.评估模型</h3>
+<p>运行评估脚本</p>
+<pre><code class="language-bash">python eval1.py
+</code></pre>
+<h2 id="实验结果">实验结果</h2>
+<p>在<code>train.py</code>中,我们能控制的超参数如下:</p>
+<pre><code class="language-python">    <span class="hljs-comment"># Dataset</span>
+    parser.add_argument(<span class="hljs-string">&quot;--dataset&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">str</span>, default=<span class="hljs-string">&quot;cora&quot;</span>)
+
+    <span class="hljs-comment"># Architecture</span>
+    parser.add_argument(<span class="hljs-string">&quot;--hidden-sizec&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">512</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--hidden-sizel&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">512</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--num-layers&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">3</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--pair-norm-scale&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">float</span>, default=<span class="hljs-literal">None</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--loop&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">bool</span>, default=<span class="hljs-literal">False</span>)
+
+    <span class="hljs-comment"># Training</span>
+    parser.add_argument(<span class="hljs-string">&quot;--dropedge-prob&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">float</span>, default=<span class="hljs-literal">None</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--lr&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">float</span>, default=<span class="hljs-number">2e-4</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--seed&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">123</span>)
+
+    parser.add_argument(<span class="hljs-string">&quot;--results-path&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">str</span>, default=<span class="hljs-literal">None</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--epochc&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">100</span>)
+    parser.add_argument(<span class="hljs-string">&quot;--epochl&quot;</span>, <span class="hljs-built_in">type</span>=<span class="hljs-built_in">int</span>, default=<span class="hljs-number">100</span>)
+</code></pre>
+<p>除去<code>seed</code>和<code>results-path</code>外,我们对其他参数进行了调整,分析如下:</p>
+<ol>
+<li><code>dataset</code>: <code>Cora</code>数据集更小更简单</li>
+<li><code>hidden-sizec</code>: 用于结点分类的首个隐藏层大小,为了适应不同数据集的特性,我们在<code>Cora</code>数据集上设置的比<code>Citeseer</code>数据集上小</li>
+<li><code>hidden-sizel</code>: 用于链路预测的首个隐藏层大小,为了适应不同数据集的特性,我们在<code>Cora</code>数据集上设置的比<code>Citeseer</code>数据集上小</li>
+<li><code>num-layers</code>: 除去<code>conv_in</code>之后的<code>GCNConv</code>层数,我们观察到两个数据集上的最优值都是2,再增加层数由于图结点的信息已经传递得足够多,反而性能不佳</li>
+<li><code>pair-norm-scale</code>: 用于<code>PairNorm</code>层的缩放参数,使用<code>PairNorm</code>层可以提高模型的性能,使得训练更加稳定</li>
+<li><code>loop</code>: 是否使用自环,我们发现在使用自环可以明显地提高模型的性能</li>
+<li><code>dropedge-prob</code>: 随机删除边的概率,我们在把数据输入给模型之前随机删除一些边,这样可以提高模型的泛化能力</li>
+<li><code>lr</code>: 学习率,<code>2e-4</code>是一个比较常用的值,过大会导致模型不收敛,过小会导致模型收敛速度过慢</li>
+<li><code>epochc</code>: 结点分类任务的训练轮数,100轮是一个比较合适的值</li>
+<li><code>epochl</code>: 链路预测任务的训练轮数,在<code>Cora</code>数据集上200轮是一个比较合适的值,在<code>Citeseer</code>数据集上80轮是一个比较合适的值</li>
+</ol>
+<p>我们最终选择的参数如下:</p>
+<pre><code class="language-yaml"><span class="hljs-attr">dataset:</span> <span class="hljs-string">cora</span>
+<span class="hljs-attr">dropedge_prob:</span> <span class="hljs-number">0.1</span>
+<span class="hljs-attr">epochc:</span> <span class="hljs-number">100</span>
+<span class="hljs-attr">epochl:</span> <span class="hljs-number">200</span>
+<span class="hljs-attr">hidden_sizec:</span> <span class="hljs-number">512</span>
+<span class="hljs-attr">hidden_sizel:</span> <span class="hljs-number">512</span>
+<span class="hljs-attr">loop:</span> <span class="hljs-literal">true</span>
+<span class="hljs-attr">lr:</span> <span class="hljs-number">0.0002</span>
+<span class="hljs-attr">num_layers:</span> <span class="hljs-number">2</span>
+<span class="hljs-attr">pair_norm_scale:</span> <span class="hljs-number">1.0</span>
+<span class="hljs-attr">results_path:</span> <span class="hljs-string">../results/test1/</span>
+<span class="hljs-attr">seed:</span> <span class="hljs-number">123</span>
+</code></pre>
+<p>结果为:
+<img src="file:///d:\LMZ\小数据专业课\Deep Learning\Introduction-to-Deep-Learning\lab3\cora.png" alt=""></p>
+<pre><code class="language-yaml"><span class="hljs-attr">dataset:</span> <span class="hljs-string">citeseer</span>
+<span class="hljs-attr">dropedge_prob:</span> <span class="hljs-number">0.1</span>
+<span class="hljs-attr">epochc:</span> <span class="hljs-number">100</span>
+<span class="hljs-attr">epochl:</span> <span class="hljs-number">80</span>
+<span class="hljs-attr">hidden_sizec:</span> <span class="hljs-number">3200</span>
+<span class="hljs-attr">hidden_sizel:</span> <span class="hljs-number">1600</span>
+<span class="hljs-attr">loop:</span> <span class="hljs-literal">true</span>
+<span class="hljs-attr">lr:</span> <span class="hljs-number">0.0002</span>
+<span class="hljs-attr">num_layers:</span> <span class="hljs-number">2</span>
+<span class="hljs-attr">pair_norm_scale:</span> <span class="hljs-number">1.0</span>
+<span class="hljs-attr">results_path:</span> <span class="hljs-string">../results/test2/</span>
+<span class="hljs-attr">seed:</span> <span class="hljs-number">123</span>
+</code></pre>
+<p>结果为:
+<img src="file:///d:\LMZ\小数据专业课\Deep Learning\Introduction-to-Deep-Learning\lab3\citeseer.png" alt=""></p>
+
+            
+            
+        </body>
+        </html>
