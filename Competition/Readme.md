@@ -25,6 +25,7 @@ conda env create -f environment.yml
 ## Method
 We build our RedSys referenced from [LightGCN](https://arxiv.org/pdf/2002.02126.pdf)
 You can train the model with default config by: 
+
 **Linux**
 ```shell
 cd src
