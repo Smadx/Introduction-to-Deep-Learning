@@ -1,42 +1,105 @@
+import numpy as np
 import torch
-from torch import nn, Tensor
-from torch_sparse import SparseTensor, matmul
 
-from torch_geometric.nn.conv.gcn_conv import gcn_norm
-from torch_geometric.nn.conv import MessagePassing
 
-class LightGCN(MessagePassing):
-    def __init__(self, num_users, num_items, embedding_dim, K, add_self_loops=False):
-        
-        super().__init__()
-        self.num_users, self.num_items = num_users, num_items
-        self.embedding_dim, self.K = embedding_dim, K
-        self.add_self_loops = add_self_loops
+class PointWiseFeedForward(torch.nn.Module):
+    def __init__(self, hidden_units, dropout_rate):
 
-        self.users_emb = nn.Embedding(num_embeddings=self.num_users, embedding_dim=self.embedding_dim) # e_u^0
-        self.items_emb = nn.Embedding(num_embeddings=self.num_items, embedding_dim=self.embedding_dim) # e_i^0
-        
-        nn.init.normal_(self.users_emb.weight, std=0.1)
-        nn.init.normal_(self.items_emb.weight, std=0.1)
+        super(PointWiseFeedForward, self).__init__()
 
-    def forward(self, edge_index: SparseTensor):
-        
-        edge_index_norm = gcn_norm(edge_index, add_self_loops=self.add_self_loops)
-        emb_0 = torch.cat([self.users_emb.weight, self.items_emb.weight])
-        embs = [emb_0]
-        emb_k = emb_0
+        self.conv1 = torch.nn.Conv1d(hidden_units, hidden_units, kernel_size=1)
+        self.dropout1 = torch.nn.Dropout(p=dropout_rate)
+        self.relu = torch.nn.ReLU()
+        self.conv2 = torch.nn.Conv1d(hidden_units, hidden_units, kernel_size=1)
+        self.dropout2 = torch.nn.Dropout(p=dropout_rate)
 
-        for i in range(self.K):
-            emb_k = self.propagate(edge_index_norm, x=emb_k)
-            embs.append(emb_k)
+    def forward(self, inputs):
+        outputs = self.dropout2(self.conv2(self.relu(self.dropout1(self.conv1(inputs.transpose(-1, -2))))))
+        outputs = outputs.transpose(-1, -2)
+        outputs += inputs
+        return outputs
 
-        embs = torch.stack(embs, dim=1)
-        emb_final = torch.mean(embs, dim=1)
-        users_emb_final, items_emb_final = torch.split(emb_final, [self.num_users, self.num_items]) 
-        return users_emb_final, self.users_emb.weight, items_emb_final, self.items_emb.weight
+class SASRec(torch.nn.Module):
+    def __init__(self, user_num, item_num, args):
+        super(SASRec, self).__init__()
 
-    def message(self, x_j: Tensor) -> Tensor:
-        return x_j
+        self.user_num = user_num
+        self.item_num = item_num
+        self.dev = args.device
 
-    def message_and_aggregate(self, adj_t: SparseTensor, x: Tensor) -> Tensor:
-        return matmul(adj_t, x)
+        self.item_emb = torch.nn.Embedding(self.item_num+1, args.hidden_units, padding_idx=0)
+        self.pos_emb = torch.nn.Embedding(args.maxlen, args.hidden_units)
+        self.emb_dropout = torch.nn.Dropout(p=args.dropout_rate)
+
+        self.attention_layernorms = torch.nn.ModuleList()
+        self.attention_layers = torch.nn.ModuleList()
+        self.forward_layernorms = torch.nn.ModuleList()
+        self.forward_layers = torch.nn.ModuleList()
+
+        self.last_layernorm = torch.nn.LayerNorm(args.hidden_units, eps=1e-8)
+
+        for _ in range(args.num_blocks):
+            new_attn_layernorm = torch.nn.LayerNorm(args.hidden_units, eps=1e-8)
+            self.attention_layernorms.append(new_attn_layernorm)
+
+            new_attn_layer =  torch.nn.MultiheadAttention(args.hidden_units,args.num_heads,args.dropout_rate)
+            self.attention_layers.append(new_attn_layer)
+
+            new_fwd_layernorm = torch.nn.LayerNorm(args.hidden_units, eps=1e-8)
+            self.forward_layernorms.append(new_fwd_layernorm)
+
+            new_fwd_layer = PointWiseFeedForward(args.hidden_units, args.dropout_rate)
+            self.forward_layers.append(new_fwd_layer)
+
+
+    def log2feats(self, log_seqs):
+        seqs = self.item_emb(torch.LongTensor(log_seqs).to(self.dev))
+        seqs *= self.item_emb.embedding_dim ** 0.5
+        positions = np.tile(np.array(range(log_seqs.shape[1])), [log_seqs.shape[0], 1])
+        seqs += self.pos_emb(torch.LongTensor(positions).to(self.dev))
+        seqs = self.emb_dropout(seqs)
+
+        timeline_mask = torch.BoolTensor(log_seqs == 0).to(self.dev)
+        seqs *= ~timeline_mask.unsqueeze(-1)
+
+        tl = seqs.shape[1]
+        attention_mask = ~torch.tril(torch.ones((tl, tl), dtype=torch.bool, device=self.dev))
+
+        for i in range(len(self.attention_layers)):
+            seqs = torch.transpose(seqs, 0, 1)
+            Q = self.attention_layernorms[i](seqs)
+            mha_outputs, _ = self.attention_layers[i](Q, seqs, seqs, attn_mask=attention_mask)
+
+            seqs = Q + mha_outputs
+            seqs = torch.transpose(seqs, 0, 1)
+
+            seqs = self.forward_layernorms[i](seqs)
+            seqs = self.forward_layers[i](seqs)
+            seqs *=  ~timeline_mask.unsqueeze(-1)
+
+        log_feats = self.last_layernorm(seqs) # (U, T, C) -> (U, -1, C)
+
+        return log_feats
+
+    def forward(self, user_ids, log_seqs, pos_seqs, neg_seqs):    
+        log_feats = self.log2feats(log_seqs)
+
+        pos_embs = self.item_emb(torch.LongTensor(pos_seqs).to(self.dev))
+        neg_embs = self.item_emb(torch.LongTensor(neg_seqs).to(self.dev))
+
+        pos_logits = (log_feats * pos_embs).sum(dim=-1)
+        neg_logits = (log_feats * neg_embs).sum(dim=-1)
+
+
+        return pos_logits, neg_logits
+
+    def predict(self, user_ids, log_seqs, item_indices):
+        log_feats = self.log2feats(log_seqs)
+
+        final_feat = log_feats[:, -1, :]
+
+        item_embs = self.item_emb(torch.LongTensor(item_indices).to(self.dev)) # (U, I, C)
+
+        logits = item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)
+
+        return logits

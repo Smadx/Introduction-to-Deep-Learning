@@ -1,174 +1,191 @@
-import dataclasses
+import sys
+import copy
 import torch
+import random
 import numpy as np
-import pandas as pd
-import warnings
+from collections import defaultdict
+from multiprocessing import Process, Queue
 
-from dataclasses import dataclass
-from torch import nn, LongTensor
-from torch.nn import functional as F
-from torch_sparse import SparseTensor
-from datetime import datetime
-from pathlib import Path
-from typing import Optional
-from accelerate import Accelerator
+# sampler for batch generation
+def random_neq(l, r, s):
+    t = np.random.randint(l, r)
+    while t in s:
+        t = np.random.randint(l, r)
+    return t
 
-@dataclass
-class TrainConfig:
-    data_dir: str
-    embedding_dim: int
-    num_layers: int
-    results_path: str
-    seed: int
-    epochs: int
-    check_step: int
-    batch_size: int
-    lr: float
-    K: int
-    lambda_: float
 
-class BPRLoss(nn.Module):
-    def __init__(self, lambda_):
-        super().__init__()
-        self.lambda_ = lambda_
-    
-    def forward(self, users_emb_final, users_emb_0, pos_items_emb_final, pos_items_emb_0, neg_items_emb_final, neg_items_emb_0):
-        reg_loss = self.lambda_ * (users_emb_0.norm(2).pow(2) + pos_items_emb_0.norm(2).pow(2) + neg_items_emb_0.norm(2).pow(2)) # L2 loss
+def sample_function(user_train, usernum, itemnum, batch_size, maxlen, result_queue, SEED):
+    def sample():
 
-        pos_scores = torch.mul(users_emb_final, pos_items_emb_final)
-        pos_scores = torch.sum(pos_scores, dim=-1)
-        neg_scores = torch.mul(users_emb_final, neg_items_emb_final)
-        neg_scores = torch.sum(neg_scores, dim=-1)
-        
-        loss = -F.logsigmoid(pos_scores - neg_scores).sum() + reg_loss
-        
-        return loss
+        user = np.random.randint(1, usernum + 1)
+        while len(user_train[user]) <= 1: user = np.random.randint(1, usernum + 1)
 
-def collate_fn(batch):
-    edge_index = torch.stack(batch, dim=1) if isinstance(batch[0], torch.Tensor) else torch.tensor(batch)
-    if edge_index.dtype != torch.long:
-        edge_index = edge_index.long()
-    if edge_index.shape[0] != 2:
-        raise ValueError("edge_index should have shape [2, num_messages]")
-    return edge_index
+        seq = np.zeros([maxlen], dtype=np.int32)
+        pos = np.zeros([maxlen], dtype=np.int32)
+        neg = np.zeros([maxlen], dtype=np.int32)
+        nxt = user_train[user][-1]
+        idx = maxlen - 1
 
-def make_dataset(data_dir: str) -> tuple[LongTensor, LongTensor, SparseTensor, SparseTensor, LongTensor]:
-    train_df = pd.read_csv(data_dir + "train_data.csv")
-    val_df = pd.read_csv(data_dir + "val_data.csv")
+        ts = set(user_train[user])
+        for i in reversed(user_train[user][:-1]):
+            seq[idx] = i
+            pos[idx] = nxt
+            if nxt != 0: neg[idx] = random_neq(1, itemnum + 1, ts)
+            nxt = i
+            idx -= 1
+            if idx == -1: break
 
-    train_edge_index = LongTensor(train_df[["user_id", "item_id"]].values.T)
-    val_edge_index = LongTensor(val_df[["user_id", "item_id"]].values.T)
+        return (user, seq, pos, neg)
 
-    edge_index = torch.cat((train_edge_index, val_edge_index), 1)
+    np.random.seed(SEED)
+    while True:
+        one_batch = []
+        for i in range(batch_size):
+            one_batch.append(sample())
 
-    train_sparse_tensor = SparseTensor(row=train_edge_index[0], col=train_edge_index[1] + 53424, sparse_sizes=(53424 + 10000, 53424 + 10000))
-    val_sparse_tensor = SparseTensor(row=val_edge_index[0], col=val_edge_index[1] + 53424, sparse_sizes=(53424 + 10000, 53424 + 10000))
+        result_queue.put(zip(*one_batch))
 
-    return train_edge_index, val_edge_index, train_sparse_tensor, val_sparse_tensor, edge_index
 
-def RecallPrecision_at_K(groundTruth, r, k):
-    num_correct_pred = torch.sum(r, dim=-1)
-    user_num_liked = torch.Tensor([len(groundTruth[i]) for i in range(len(groundTruth))])
-    recall = torch.mean(num_correct_pred / user_num_liked)
-    precision = torch.mean(num_correct_pred) / k
-    
-    return recall.item(), precision.item()
+class WarpSampler(object):
+    def __init__(self, User, usernum, itemnum, batch_size=64, maxlen=10, n_workers=1):
+        self.result_queue = Queue(maxsize=n_workers * 10)
+        self.processors = []
+        for i in range(n_workers):
+            self.processors.append(
+                Process(target=sample_function, args=(User,usernum,itemnum,batch_size,maxlen,self.result_queue,np.random.randint(2e9))))
+            self.processors[-1].daemon = True
+            self.processors[-1].start()
 
-def NDCG_at_K(groundTruth, r, k):
-    assert len(r) == len(groundTruth)
-    test_matrix = torch.zeros((len(r), k))
-    for i, items in enumerate(groundTruth):
-        length = min(len(items), k)
-        test_matrix[i, :length] = 1
-    max_r = test_matrix
-    idcg = torch.sum(max_r * 1. / torch.log2(torch.arange(2, k + 2)), axis=1)
-    dcg = r * (1. / torch.log2(torch.arange(2, k + 2)))
-    dcg = torch.sum(dcg, axis=1)
-    idcg[idcg == 0.] = 1.
-    ndcg = dcg / idcg
-    ndcg[torch.isnan(ndcg)] = 0.
-    
-    return torch.mean(ndcg).item()
+    def next_batch(self):
+        return self.result_queue.get()
 
-def get_user_positive_items(edge_index):
-    user_pos_items = {}
-    for i in range(edge_index.shape[1]):
-        user = edge_index[0][i].item()
-        item = edge_index[1][i].item()
-        if user not in user_pos_items:
-            user_pos_items[user] = []
-        user_pos_items[user].append(item)
-        
-    return user_pos_items
+    def close(self):
+        for p in self.processors:
+            p.terminate()
+            p.join()
 
-def get_metrics(model, edge_index, sparse_edge_index, exclude_edge_index, train_sparse_edge_index, k):
-    
-    user_embedding, _, item_embedding, _  = model.forward(train_sparse_edge_index)
-    
-    user_embedding = np.array(user_embedding.cpu().detach().numpy())
-    item_embedding = np.array(item_embedding.cpu().detach().numpy())
-                  
-    rating = torch.tensor(np.matmul(user_embedding, item_embedding.T))
-    
-    user_pos_items = get_user_positive_items(exclude_edge_index)
-    exclude_users = []
-    exclude_items = []
-    for user, items in user_pos_items.items():
-        exclude_users.extend([user] * len(items))
-        exclude_items.extend(items)
-    rating[exclude_users, exclude_items] = -(1 << 10)
-    
-    _, top_K_items = torch.topk(rating, k=k)
-    
-    users = edge_index[0].unique()
-    test_user_pos_items = get_user_positive_items(edge_index)
-    test_user_pos_items_list = [test_user_pos_items[user.item()] for user in users]
-    
-    r = []
-    for user in users:
-        ground_truth_items = test_user_pos_items[user.item()]
-        label = list(map(lambda x: x in ground_truth_items, top_K_items[user]))
-        r.append(label)
-    r = torch.Tensor(np.array(r).astype('float'))
-    
-    recall, precision = RecallPrecision_at_K(test_user_pos_items_list, r, k)
-    ndcg = NDCG_at_K(test_user_pos_items_list, r, k)
 
-    return recall, precision, ndcg
+# train/val/test data generation
+def data_partition(fname):
+    usernum = 0
+    itemnum = 0
+    User = defaultdict(list)
+    user_train = {}
+    user_valid = {}
+    user_test = {}
 
-def get_date_str():
-    return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    f = open('../dataset/%s.txt' % fname, 'r')
+    for line in f:
+        u, i = line.rstrip().split(',')
+        u = int(u)
+        i = int(i)
+        usernum = max(u, usernum)
+        itemnum = max(i, itemnum)
+        User[u].append(i)
 
-def handle_results_path(res_path: str, default_root: str = "./results") -> Path:
-    """Sets results path if it doesn't exist yet."""
-    if res_path is None:
-        results_path = Path(default_root) / get_date_str()
+    for user in User:
+        nfeedback = len(User[user])
+        if nfeedback < 3:
+            user_train[user] = User[user]
+            user_valid[user] = []
+            user_test[user] = []
+        else:
+            user_train[user] = User[user][:-2]
+            user_valid[user] = []
+            user_valid[user].append(User[user][-2])
+            user_test[user] = []
+            user_test[user].append(User[user][-1])
+    return [user_train, user_valid, user_test, usernum, itemnum]
+
+def evaluate(model, dataset, args):
+    [train, valid, test, usernum, itemnum] = copy.deepcopy(dataset)
+
+    NDCG = 0.0
+    HT = 0.0
+    valid_user = 0.0
+
+    if usernum>10000:
+        users = random.sample(range(1, usernum + 1), 10000)
     else:
-        results_path = Path(res_path)
-    log(f"Results will be saved to '{results_path}'")
-    return results_path
+        users = range(1, usernum + 1)
+    for u in users:
 
-def init_config_from_args(cls, args):
-    """
-    Initialize a dataclass from a Namespace.
-    """
-    return cls(**{f.name: getattr(args, f.name) for f in dataclasses.fields(cls)})
+        if len(train[u]) < 1 or len(test[u]) < 1: continue
 
-_accelerator: Optional[Accelerator] = None
+        seq = np.zeros([args.maxlen], dtype=np.int32)
+        idx = args.maxlen - 1
+        seq[idx] = valid[u][0]
+        idx -= 1
+        for i in reversed(train[u]):
+            seq[idx] = i
+            idx -= 1
+            if idx == -1: break
+        rated = set(train[u])
+        rated.add(0)
+        item_idx = [test[u][0]]
+        for _ in range(100):
+            t = np.random.randint(1, itemnum + 1)
+            while t in rated: t = np.random.randint(1, itemnum + 1)
+            item_idx.append(t)
+
+        predictions = -model.predict(*[np.array(l) for l in [[u], [seq], item_idx]])
+        predictions = predictions[0]
+
+        rank = predictions.argsort().argsort()[0].item()
+
+        valid_user += 1
+
+        if rank < 10:
+            NDCG += 1 / np.log2(rank + 2)
+            HT += 1
+        if valid_user % 100 == 0:
+            print('.', end="")
+            sys.stdout.flush()
+
+    return NDCG / valid_user, HT / valid_user
 
 
-def init_logger(accelerator: Accelerator):
-    global _accelerator
-    if _accelerator is not None:
-        raise ValueError("Accelerator already set")
-    _accelerator = accelerator
+# evaluate on val set
+def evaluate_valid(model, dataset, args):
+    [train, valid, test, usernum, itemnum] = copy.deepcopy(dataset)
 
-
-def log(message):
-    global _accelerator
-    if _accelerator is None:
-        warnings.warn("Accelerator not set, using print instead.")
-        print_fn = print
+    NDCG = 0.0
+    valid_user = 0.0
+    HT = 0.0
+    if usernum>10000:
+        users = random.sample(range(1, usernum + 1), 10000)
     else:
-        print_fn = _accelerator.print
-    print_fn(message)
+        users = range(1, usernum + 1)
+    for u in users:
+        if len(train[u]) < 1 or len(valid[u]) < 1: continue
+
+        seq = np.zeros([args.maxlen], dtype=np.int32)
+        idx = args.maxlen - 1
+        for i in reversed(train[u]):
+            seq[idx] = i
+            idx -= 1
+            if idx == -1: break
+
+        rated = set(train[u])
+        rated.add(0)
+        item_idx = [valid[u][0]]
+        for _ in range(100):
+            t = np.random.randint(1, itemnum + 1)
+            while t in rated: t = np.random.randint(1, itemnum + 1)
+            item_idx.append(t)
+
+        predictions = -model.predict(*[np.array(l) for l in [[u], [seq], item_idx]])
+        predictions = predictions[0]
+
+        rank = predictions.argsort().argsort()[0].item()
+
+        valid_user += 1
+
+        if rank < 10:
+            NDCG += 1 / np.log2(rank + 2)
+            HT += 1
+        if valid_user % 100 == 0:
+            print('.', end="")
+            sys.stdout.flush()
+
+    return NDCG / valid_user, HT / valid_user
